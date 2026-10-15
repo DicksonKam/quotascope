@@ -50,4 +50,8 @@ export class Operation {
       });
     return this.flight;
   }
+
+  async settled(): Promise<void> {
+    await this.flight;
+  }
 }

@@ -7,10 +7,11 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdirSync, readFileSync, existsSync, chmodSync } from "node:fs";
 import { resolve, join, extname } from "node:path";
 import { Store } from "./store.ts";
-import { identityFactory, csvCell, numeric, label } from "./privacy.ts";
+import { identityFactory, numeric, label } from "./privacy.ts";
 import { readAccount, accountSnapshot } from "./account.ts";
 import { DashboardReader, type DashboardQuery } from "./dashboard-reader.ts";
 import { ImportJob } from "./import-job.ts";
+import { ExportJob } from "./export-job.ts";
 import type {
   AccountSnapshot,
   Annotation,
@@ -70,7 +71,7 @@ const importJob = new ImportJob(
 async function importLogs() {
   status.scanning = true;
   try {
-    return await scanOperation.run(() => importJob.run());
+    return await importJob.run();
   } finally {
     status.scanning = false;
   }
@@ -95,20 +96,31 @@ const importer = new Collector(
   900000,
 );
 function rescan() {
-  return importer.cycle(true);
+  return scanOperation.run(async () => {
+    await importer.cycle(true);
+    return importer.state.lastError === null;
+  });
 }
 let backupJob: ImportJob | null = null;
 let backupFlight: Promise<boolean> | null = null;
+let backupAutomatic = false;
 function backup(automatic: boolean): Promise<boolean> {
-  if (backupFlight) return backupFlight;
+  if (stopping) return Promise.resolve(false);
+  if (backupFlight) {
+    // A manual request needs a fresh copy, not merely verification of yesterday's automatic copy.
+    if (!automatic && backupAutomatic)
+      return backupFlight.then(() => backup(false));
+    return backupFlight;
+  }
+  backupAutomatic = automatic;
   backupJob = new ImportJob(
     dir,
     120000,
     new URL("./backup-worker.ts", import.meta.url),
     { QUOTASCOPE_BACKUP_MODE: automatic ? "automatic" : "manual" },
   );
-  backupFlight = backupOperation
-    .run(() => backupJob!.run())
+  backupFlight = backupJob
+    .run()
     .then((ok) => {
       if (!ok)
         store.set(
@@ -132,6 +144,7 @@ const backupScheduler = new Collector(
   3600000,
 );
 const dashboard = new DashboardReader(store.path);
+const exporter = new ExportJob(store.path);
 function statusSnapshot(): DashboardStatus {
   const current = store.get<AccountSnapshot>("accountSnapshot");
   return {
@@ -342,7 +355,7 @@ const server = createServer(async (req, res) => {
         });
       }
       if (req.method === "POST" && url.pathname === "/api/backup") {
-        void backup(false);
+        void backupOperation.run(() => backup(false));
         return json(res, 202, {
           operation: backupOperation.state,
           message:
@@ -350,104 +363,10 @@ const server = createServer(async (req, res) => {
         });
       }
       if (req.method === "GET" && url.pathname === "/api/export") {
-        const csv = url.searchParams.get("format") === "csv";
-        const observations = store
-          .observations()
-          .map((o) => ({
-            ...o,
-            utc: new Date(o.at).toISOString(),
-            hongKong: new Date(o.at).toLocaleString("en-GB", {
-              timeZone: "Asia/Hong_Kong",
-            }),
-            evidence:
-              o.source === "account"
-                ? "provider-observation"
-                : o.source === "manual"
-                  ? "user-observation"
-                  : "local-log-observation",
-          }));
-        const events = store
-          .events()
-          .map((e) => ({
-            ...e,
-            utc: new Date(e.at).toISOString(),
-            hongKong: new Date(e.at).toLocaleString("en-GB", {
-              timeZone: "Asia/Hong_Kong",
-            }),
-            evidence:
-              e.kind === "response"
-                ? "local-response-metadata"
-                : "cumulative-estimate",
-          }));
-        const columns = [
-          "recordType",
-          "schemaVersion",
-          "account",
-          "thread",
-          "bucket",
-          "slot",
-          "utc",
-          "hongKong",
-          "used",
-          "duration",
-          "reset",
-          "plan",
-          "source",
-          "evidence",
-          "model",
-          "effort",
-          "speed",
-          "input",
-          "cached",
-          "cacheWrite",
-          "output",
-          "reasoning",
-          "total",
-          "quality",
-        ];
-        const rows = [
-          ...observations.map((o) => ({
-            ...o,
-            recordType: "observation",
-            schemaVersion: 1,
-            quality: "reported-percentage;coverage-incomplete",
-          })),
-          ...events.map((e) => ({
-            ...e,
-            recordType: e.kind,
-            schemaVersion: 1,
-            source: "local",
-            quality: [...e.flags, "coverage-incomplete"].join(";"),
-          })),
-        ];
-        const data = csv
-          ? [
-              columns.map(csvCell).join(","),
-              ...rows.map((o) =>
-                columns.map((k) => csvCell((o as any)[k])).join(","),
-              ),
-            ].join("\r\n")
-          : JSON.stringify(
-              {
-                schemaVersion: 1,
-                generatedAt: new Date().toISOString(),
-                timezone: "Asia/Hong_Kong",
-                coverage:
-                  "Incomplete local coverage; no official quota is inferred",
-                observations,
-                events,
-                annotations: store.annotations(),
-                issues: store.issues(),
-              },
-              null,
-              2,
-            );
-        res.writeHead(200, {
-          "Content-Type": csv ? "text/csv" : "application/json",
-          "Content-Disposition": `attachment; filename="quotascope-metadata.${csv ? "csv" : "json"}"`,
-          "Cache-Control": "no-store",
-        });
-        return res.end(data);
+        return await exporter.serve(
+          res,
+          url.searchParams.get("format") === "csv" ? "csv" : "json",
+        );
       }
       return json(res, 404, { error: "Unknown operation" });
     }
@@ -508,13 +427,19 @@ async function stop() {
   if (stopping) return;
   stopping = true;
   server.close();
-  await Promise.all([importJob.stop(), backupJob?.stop(), dashboard.stop()]);
+  await Promise.all([
+    importJob.stop(),
+    backupJob?.stop(),
+    dashboard.stop(),
+    exporter.stop(),
+  ]);
   await Promise.all([
     collector.stop(),
     importer.stop(),
     backupScheduler.stop(),
   ]);
   await Promise.allSettled([refreshing]);
+  await Promise.all([scanOperation.settled(), backupOperation.settled()]);
   await vite?.close();
   store.close();
   process.exit(0);

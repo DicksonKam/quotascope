@@ -138,9 +138,11 @@ export type DashboardResponse = DashboardStatus & DashboardDetails;
 export type DashboardState = DashboardStatus &
   Partial<DashboardDetails> & { detailsDelayed?: boolean };
 
-export interface ActionResponse {
-  version?: number;
-  message?: string;
-  error?: string;
-  operation?: OperationState;
-}
+export type ActionResponse =
+  | DashboardStatus
+  | {
+      version?: undefined;
+      message?: string;
+      error?: string;
+      operation?: OperationState;
+    };

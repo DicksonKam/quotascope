@@ -8,6 +8,7 @@ import {
   readdirSync,
   chmodSync,
   existsSync,
+  renameSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
@@ -692,6 +693,88 @@ try {
   verify(
     JSON.stringify(d.windows) === beforeRestart,
     "paused restart retains exact current window membership and timestamps",
+  );
+  // A restart must preserve the last requested outcome even while automatic jobs run.
+  await stop();
+  const interrupted = new Store(join(dataDir, "quotascope.sqlite"));
+  for (const kind of ["scan", "backup"])
+    interrupted.set(kind + "Operation", {
+      id: "interrupted-" + kind,
+      state: "running",
+      startedAt: Date.now() - 1000,
+      completedAt: null,
+    });
+  interrupted.set("collectionEnabled", true);
+  interrupted.close();
+  start();
+  d = await ready();
+  verify(
+    d.operations.scan.id === "interrupted-scan" &&
+      d.operations.scan.state === "interrupted",
+    "automatic import cannot overwrite an interrupted requested scan",
+  );
+  verify(
+    d.operations.backup.id === "interrupted-backup" &&
+      d.operations.backup.state === "interrupted",
+    "startup automatic backup cannot overwrite an interrupted requested backup",
+  );
+  await post("collector", { enabled: false });
+  await stop();
+  start(invalidRoot);
+  d = await ready();
+  const failedRequest = await (await post("scan")).json();
+  for (let i = 0; i < 100; i++) {
+    d = await state();
+    if (d.operations.scan.state !== "running") break;
+    await new Promise((r) => setTimeout(r, 30));
+  }
+  verify(
+    d.operations.scan.id === failedRequest.operation.id &&
+      d.operations.scan.state === "failed",
+    "accepted failing scan reports its own durable failure",
+  );
+  await stop();
+  const enabledStore = new Store(join(dataDir, "quotascope.sqlite"));
+  enabledStore.set("collectionEnabled", true);
+  enabledStore.close();
+  start();
+  d = await ready();
+  verify(
+    !d.importer.lastError &&
+      d.operations.scan.id === failedRequest.operation.id &&
+      d.operations.scan.state === "failed",
+    "successful automatic retry preserves last requested failure for a reopened dashboard",
+  );
+  // A filesystem failure in the real backup worker must also survive the next automatic check.
+  renameSync(join(dataDir, "backups"), join(dataDir, "preserved-backups"));
+  writeFileSync(
+    join(dataDir, "backups"),
+    "Fixture blocker, preserved after test",
+  );
+  const failedBackup = await (await post("backup")).json();
+  for (let i = 0; i < 100; i++) {
+    d = await state();
+    if (d.operations.backup.state !== "running") break;
+    await new Promise((r) => setTimeout(r, 30));
+  }
+  verify(
+    d.operations.backup.id === failedBackup.operation.id &&
+      d.operations.backup.state === "failed",
+    "accepted backup failure keeps its requested ID",
+  );
+  await stop();
+  renameSync(
+    join(dataDir, "backups"),
+    join(dataDir, "preserved-backup-blocker.txt"),
+  );
+  renameSync(join(dataDir, "preserved-backups"), join(dataDir, "backups"));
+  start();
+  d = await ready();
+  verify(
+    !d.backup.error &&
+      d.operations.backup.id === failedBackup.operation.id &&
+      d.operations.backup.state === "failed",
+    "automatic backup recovery cannot relabel a failed manual request as successful",
   );
   console.log(
     JSON.stringify({

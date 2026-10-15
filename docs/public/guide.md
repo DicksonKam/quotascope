@@ -37,7 +37,9 @@ A checkout that has never been reinstalled after this update can still have an o
 
 ## Backups and recovery
 
-Details → Evidence shows backup status. Save private backup and Rescan return promptly; their operation IDs distinguish new requests from earlier successes. Leave the dashboard open to see completion, or return later to see the latest persisted operation status. A restart marks unfinished jobs interrupted. A request timeout is not proof that a write failed: reconnect and inspect before retrying. Requests are never replayed after transport errors.
+Details → Evidence shows backup status. Save private backup and Rescan return promptly; their operation IDs distinguish new requests from earlier successes. Recent requests shows the last requested scan and backup result, including after reopening the dashboard. Automatic monitoring and backups do not replace those results. A restart marks unfinished requests interrupted. A request timeout is not proof that a write failed: reconnect and inspect before retrying. Requests are never replayed after transport errors.
+
+Exports stream from a separate read-only worker so collection can continue. One export runs at a time; a second request asks you to retry. Cancelling the download stops its worker. An export exceeding two minutes is stopped; an interrupted download must be retried rather than treated as complete. JSON/CSV fields and full-history coverage are unchanged.
 
 Daily backups contain the database and matching identity key. Copies are verified with hashes, database integrity and record counts. Keep seven automatic copies; older verified automatic copies move to Trash. Manual copies and unverifiable folders are preserved. If Trash is unavailable, retain old copies and show a warning. There is no automatic history deletion.
 

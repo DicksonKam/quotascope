@@ -2026,3 +2026,8 @@ footer label {
 footer select {
   max-width: 170px;
 }
+/* Last requested outcomes remain available across dashboard visits. */
+.operation-results { margin: 12px 0; padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; }
+.operation-results summary { cursor: pointer; }
+.operation-results p { margin: 10px 0 0; }
+.operation-results small { opacity: .7; }
