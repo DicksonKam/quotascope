@@ -76,7 +76,7 @@ func payload(version: Int = 1, used: Double = 27, ok: Bool = true, enabled: Bool
         for visible in [CGRect(x: 0, y: 0, width: 1920, height: 1050), CGRect(x: -1440, y: 40, width: 1440, height: 860), CGRect(x: 100, y: -900, width: 300, height: 360)] {
             for x in [visible.minX, visible.midX, visible.maxX] {
                 let frame = panelFrame(anchor: CGRect(x: x, y: visible.maxY, width: 24, height: 24), visible: visible)
-                precondition(visible.contains(frame) && frame.width <= 440 && frame.height <= 600)
+                precondition(visible.contains(frame) && frame.width <= 440 && frame.height <= 560)
                 precondition(frame.maxY <= visible.maxY - 8)
             }
         }
@@ -90,28 +90,23 @@ func payload(version: Int = 1, used: Double = 27, ok: Bool = true, enabled: Bool
         let unsampled = historyPoints.map { HistoryPoint(at: $0.at, used: $0.used, reset: $0.reset, account: $0.account, continuity: $0.continuity, chartSegment: nil) }
         precondition(allowancePlot(unsampled, local: false).map(\.segment) == [0,0,1,2])
         precondition(allowancePlot(historyPoints, local: true).map(\.segment) == [0,0,0,1])
-        let date = ISO8601DateFormatter().date(from: "2026-03-09T16:00:00Z")!
-        let days = [ActivityDay(name: "2026-03-07", total: 100), ActivityDay(name: "2026-03-08", total: 200), ActivityDay(name: "2026-03-09", total: 300), ActivityDay(name: "bad", total: 9), ActivityDay(name: "2026-03-11", total: 5)]
-        let daily = activityPlot(days, count: 3, now: date, timezone: TimeZone(identifier: "America/New_York")!)
-        precondition(daily.count == 3 && daily.map(\.segment) == [0,0,0]) // DST day isn't a gap.
-        precondition(activityPlot([days[0], days[2]], count: 3, now: date, timezone: TimeZone(identifier: "America/New_York")!).map(\.segment) == [0,1])
         let historyPayload = Data("""
-        {"version":1,"latest":{"bucket":"codex","slot":"primary","used":27,"at":1},"history":[],"localHistory":[],"historyTruncated":false,"localHistoryTruncated":false,"usage":{"days":[{"name":"2026-03-09","total":300}],"recentTokensPerMinute":5}}
+        {"version":1,"latest":{"bucket":"codex","slot":"primary","used":27,"at":1},"history":[{"at":1,"used":30}],"localHistory":[],"historyTruncated":false,"localHistoryTruncated":false}
         """.utf8)
         var historyRequests = 0
         FixtureProtocol.handler = { request in
             precondition(request.url!.path == "/api/state")
             let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!
-            precondition(query.first(where: { $0.name == "view" })?.value == "activity")
+            precondition(query.first(where: { $0.name == "view" })?.value == "overview")
             precondition(query.first(where: { $0.name == "window" })?.value == "[\"codex\",\"primary\"]")
             historyRequests += 1
             return (200, historyPayload)
         }
         await model.updateHistory(); await model.updateHistory()
-        precondition(historyRequests == 1 && model.history?.usage.days.count == 1)
+        precondition(historyRequests == 1 && model.history?.history.count == 1)
         FixtureProtocol.handler = { _ in (503, Data()) }
         await model.updateHistory(force: true)
-        precondition(model.historyUnavailable && model.history?.usage.days.count == 1)
+        precondition(model.historyUnavailable && model.history?.history.count == 1)
         model.days = 7
         await model.updateHistory(force: true)
         precondition(model.historyUnavailable && model.history == nil && !model.historyBusy)
@@ -128,7 +123,7 @@ func payload(version: Int = 1, used: Double = 27, ok: Bool = true, enabled: Bool
         FixtureProtocol.handler = { request in
             let range = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!.first(where: { $0.name == "days" })!.value!
             Thread.sleep(forTimeInterval: range == "30" ? 0.05 : 0.1)
-            return (200, Data(String(data: historyPayload, encoding: .utf8)!.replacingOccurrences(of: "\"total\":300", with: "\"total\":\(range == "30" ? 300 : 700)").utf8))
+            return (200, Data(String(data: historyPayload, encoding: .utf8)!.replacingOccurrences(of: "\"used\":30", with: "\"used\":\(range == "30" ? 30 : 70)").utf8))
         }
         model.days = 30
         let oldRange = Task { await model.updateHistory(force: true) }
@@ -138,8 +133,8 @@ func payload(version: Int = 1, used: Double = 27, ok: Bool = true, enabled: Bool
         await oldRange.value
         precondition(model.history == nil && model.historyBusy)
         await newRange.value
-        precondition(model.history?.usage.days.first?.total == 700 && !model.historyBusy)
-        print("Passed history checks: screen bounds, negative display origins, small screens, gap/reset segmentation, remaining percentages, calendar/DST ranges, bounded history queries, caching and failure recovery.")
+        precondition(model.history?.history.first?.used == 70 && !model.historyBusy)
+        print("Passed history checks: screen bounds, negative display origins, small screens, gap/reset segmentation, remaining percentages, bounded history queries, caching and failure recovery.")
         print("Passed native model checks: decoding, percentages, freshness, configuration, CSRF refresh sequence, failures, recovery, single-flight and redirect refusal.")
     }
 }

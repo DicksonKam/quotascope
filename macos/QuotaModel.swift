@@ -67,9 +67,9 @@ final class MonitorClient {
     func history(days: Int, window: Allowance?) async throws -> HistoryResponse {
         var url = URLComponents(url: base.appendingPathComponent("/api/state"), resolvingAgainstBaseURL: false)!
         let key = try window.map { String(data: try JSONEncoder().encode([$0.bucket, $0.slot]), encoding: .utf8)! } ?? ""
-        url.queryItems = [URLQueryItem(name: "view", value: "activity"), URLQueryItem(name: "days", value: String(days)), URLQueryItem(name: "window", value: key), URLQueryItem(name: "timezone", value: TimeZone.current.identifier)]
+        url.queryItems = [URLQueryItem(name: "view", value: "overview"), URLQueryItem(name: "days", value: String(days)), URLQueryItem(name: "window", value: key), URLQueryItem(name: "timezone", value: TimeZone.current.identifier)]
         let result: HistoryResponse = try await decodedRequest(url: url.url!)
-        guard result.version == 1, result.history.count <= 600, result.localHistory.count <= 600, result.usage.days.count <= 90 else { throw MonitorError.incompatible }
+        guard result.version == 1, result.history.count <= 600, result.localHistory.count <= 600 else { throw MonitorError.incompatible }
         if let window {
             guard result.latest?.id == window.id, result.latest?.account == window.account else { throw MonitorError.incompatible }
         }
@@ -95,7 +95,6 @@ final class MonitorClient {
     }
 }
 final class HistorySelection: ObservableObject {
-    @Published var mode = "Activity"
     @Published var local = false
     @Published var inspected: PlotPoint?
 }

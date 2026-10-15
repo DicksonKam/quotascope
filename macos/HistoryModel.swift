@@ -2,7 +2,7 @@ import Foundation
 import CoreGraphics
 
 // Placement uses AppKit's global, bottom-left coordinates, including negative display origins.
-func panelFrame(anchor: CGRect, visible: CGRect, preferred: CGSize = CGSize(width: 440, height: 600)) -> CGRect {
+func panelFrame(anchor: CGRect, visible: CGRect, preferred: CGSize = CGSize(width: 440, height: 560)) -> CGRect {
     let inset = min(8, min(visible.width, visible.height) / 4)
     let safe = visible.insetBy(dx: inset, dy: inset)
     let size = CGSize(width: min(preferred.width, safe.width), height: min(preferred.height, safe.height))
@@ -19,8 +19,6 @@ struct HistoryPoint: Decodable {
     let chartSegment: Int?
     var remaining: Double { min(100, max(0, 100 - used)) }
 }
-struct ActivityDay: Decodable { let name: String; let total: Double }
-struct ActivityUsage: Decodable { let days: [ActivityDay]; let recentTokensPerMinute: Double }
 struct HistoryResponse: Decodable {
     let latest: Allowance?
     let version: Int
@@ -28,7 +26,6 @@ struct HistoryResponse: Decodable {
     let localHistory: [HistoryPoint]
     let historyTruncated: Bool
     let localHistoryTruncated: Bool
-    let usage: ActivityUsage
 }
 struct PlotPoint: Identifiable {
     let id: Int
@@ -47,21 +44,5 @@ func allowancePlot(_ points: [HistoryPoint], local: Bool) -> [PlotPoint] {
             }
         }
         return PlotPoint(id: index, date: Date(timeIntervalSince1970: point.at / 1000), value: point.remaining, segment: segment)
-    }
-}
-func activityPlot(_ days: [ActivityDay], count: Int, now: Date = Date(), timezone: TimeZone = .current) -> [PlotPoint] {
-    var calendar = Calendar(identifier: .gregorian); calendar.timeZone = timezone
-    let start = calendar.date(byAdding: .day, value: -(count - 1), to: calendar.startOfDay(for: now))!
-    let end = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))!
-    let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.calendar = calendar; formatter.timeZone = timezone; formatter.dateFormat = "yyyy-MM-dd"; formatter.isLenient = false
-    let dated = days.compactMap { day -> (Date, Double)? in
-        guard let date = formatter.date(from: day.name), formatter.string(from: date) == day.name, date >= start, date < end, day.total >= 0 else { return nil }
-        return (date, day.total)
-    }.sorted { $0.0 < $1.0 }
-    var segment = 0
-    return dated.enumerated().map { index, pair in
-        if index > 0, calendar.dateComponents([.day], from: dated[index - 1].0, to: pair.0).day != 1 { segment += 1 }
-        return PlotPoint(id: index, date: pair.0, value: pair.1, segment: segment)
     }
 }
