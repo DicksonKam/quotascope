@@ -1,6 +1,10 @@
 # Compatibility and verification scope
 
-QuotaScope is an early release candidate. The implementation was exercised on macOS 27.0.1 (26A434) / Apple Silicon, Node.js 23.9.0, and the bundled Codex CLI 0.162.0-alpha.17.2. Passing on that runtime is not a claim that every permitted runtime/CLI version has been tested. CI runs fixture-based checks on its listed runtimes.
+QuotaScope is an early release candidate. Verification on 16 October 2026 used macOS 27.0.1 (26A434) / Apple Silicon and the bundled Codex CLI 0.162.0-alpha.17.2. The live service was checked on Node.js 23.9.0.
+
+Fresh source copies in paths containing spaces passed dependency installation, type checking, 88 unit/component tests, production build, 77 application HTTP assertions, the additional large-history export HTTP suite and the 31-second worker check on Node.js **22.13.0, 22.23.3 and 24.22.0**. Source publication preparation also passed on 22.23.3 and 24.22.0. A separate Node 24.22.0 installation with only production dependencies and prebuilt dashboard assets passed both HTTP suites, including generated login-agent command execution against fixture data. These are isolated installations on the same Mac, not fresh physical machines.
+
+The GitHub Actions workflow is configured for Node 22 and 24 on macOS and Linux. Remote CI has not yet run; local results do not establish GitHub runner or Linux compatibility. Passing on the tested versions does not establish compatibility with every future Node or Codex CLI version.
 
 Node.js 22.13+ provides the SQLite API used here. `tsx` is a runtime dependency because both the server and child workers execute TypeScript. Install development dependencies to build, then a runtime-only install can run the built dashboard.
 

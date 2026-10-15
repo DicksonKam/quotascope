@@ -4,6 +4,8 @@ A private, local allowance dashboard for Mac users with a signed-in Codex accoun
 
 QuotaScope reads the allowance windows returned by your installed Codex app-server. It does **not** monitor every ChatGPT model, tool, device or subscription feature. It is an independent project, not an OpenAI product.
 
+**Release status:** early release candidate. Automated local checks pass; physical login/sleep recovery, other Mac hardware and extended operation are still being verified. See [compatibility and verification scope](docs/public/compatibility.md).
+
 ![Synthetic demonstration; no personal account data](docs/public/demo.png)
 
 ## Setup
