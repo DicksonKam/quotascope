@@ -21,7 +21,16 @@ npm start
 
 Open <http://127.0.0.1:4317>. Doctor can report that the service is not running before the first start. For an executable outside PATH, set `QUOTASCOPE_CODEX` to its absolute path. Sign in through Codex itself; QuotaScope never changes authentication.
 
-To keep monitoring after closing the dashboard and start at login:
+For a native menu bar panel with no Dock icon, install Apple's Command Line Tools (`xcode-select --install` if needed), then run:
+
+```sh
+npm run menubar -- install
+npm run menubar -- status
+```
+
+This builds a local `~/Applications/QuotaScope.app`, installs its login entry, and enables the background collector. Click the gauge near the Mac's clock for balances and reset times; **Open dashboard** opens the detailed interface. Both start after signing into macOS. Quitting the menu bar app leaves collection running. This source-built app is ad-hoc signed locally, not a notarized downloadable release. See the [menu bar guide](docs/public/menu-bar.md).
+
+For background monitoring with only the browser dashboard:
 
 ```sh
 npm run service -- install

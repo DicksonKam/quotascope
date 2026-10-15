@@ -22,3 +22,7 @@ jobs:
       - run: npm run test:integration
       - run: npm run test:slow
       - run: npm run release:prepare
+      - if: runner.os == 'macOS'
+        run: npm run test:macos
+      - if: runner.os == 'macOS'
+        run: npm run menubar -- build

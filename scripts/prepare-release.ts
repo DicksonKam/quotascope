@@ -13,6 +13,7 @@ import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 export const publicRoots = [
+  "macos",
   "server",
   "src",
   "shared",
@@ -33,7 +34,7 @@ export const publicFiles = [
   "index.html",
   ".gitignore",
 ];
-const extensions = /\.(ts|tsx|css|md|json|yml|png|svg)$/;
+const extensions = /\.(ts|tsx|css|md|json|yml|png|svg|swift)$/;
 const privateText =
   /\/Users\/[^/\s]+|\/private\/var\/folders\/|sk-[A-Za-z0-9]{20,}|BEGIN (?:RSA |OPENSSH )?PRIVATE KEY|PRIVATE_PROMPT_SHOULD_NOT_LEAK(?![\w])/;
 

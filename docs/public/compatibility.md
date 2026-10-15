@@ -13,3 +13,7 @@ The provider protocol may change. Unknown account identity remains visible but d
 Real logout/login, sleep/wake recovery, Intel hardware, a fresh physical Mac and a multi-day soak remain manual release checks until exercised. LaunchAgent plist validation and fixture startup are narrower tests. Do not infer these hardware/session guarantees from passing unit tests.
 
 The dashboard reader isolates SQLite analysis from account collection. Synthetic one-year tests cover roughly 525,000 observations and 200,000 token records. Warm polling is cached, but cold aggregates, coverage scans and eligible comparisons still scale with history. No destructive retention is required. Run `npm run test:performance` for machine-specific measurements; it uses synthetic data only.
+
+## Native menu bar verification
+
+The menu bar addition passed type checking, all 90 unit/component tests and its native Swift model suite on the above Apple Silicon Mac. The bundle compiled and passed ad-hoc signature verification. Live checks verified repeated installation, duplicate-instance prevention, crash restart, intentional quit with continued collection, refresh and opening the full dashboard. The native panel was visually checked in dark appearance. Native light appearance, older macOS versions and Intel remain separate checks. Login entries were loaded and enabled; an actual new login has not yet been exercised. See [menu bar setup](menu-bar.md) for installation and distribution limits.

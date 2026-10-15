@@ -21,7 +21,9 @@
     "test:slow": "node --import tsx tests/slow-operations.ts",
     "release:prepare": "node --import tsx scripts/prepare-release.ts",
     "demo": "node --import tsx scripts/synthetic-demo.ts",
-    "format": "prettier --write src shared server tests scripts"
+    "format": "prettier --write src shared server tests scripts",
+    "menubar": "node --import tsx server/menu-bar.ts",
+    "test:macos": "node --import tsx scripts/test-macos.ts"
   },
   "dependencies": {
     "lucide-react": "0.468.0",
