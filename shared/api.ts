@@ -25,7 +25,17 @@ export interface OperationState {
   startedAt: number;
   completedAt: number | null;
 }
+export interface ActivityScope {
+  mode: "all" | "current";
+  available: boolean;
+  from: number | null;
+  reset: number | null;
+  account: string | null;
+  reason: string;
+}
 export interface DashboardQuery {
+  activityScope?: "all" | "current";
+  historyScope?: "range" | "current";
   view?: "overview" | "activity" | "evidence" | "comparisons";
   days?: 7 | 30 | 90;
   window?: string;
@@ -77,6 +87,7 @@ export interface UsageGroup extends UsageTotals {
   system: boolean;
 }
 export interface UsageSummary extends UsageTotals {
+  boundaryExcluded?: number;
   excluded: number;
   fallbackTokens: number;
   fallbackRecords: number;
@@ -115,6 +126,8 @@ export interface Comparison {
   }[];
 }
 export interface DashboardDetails {
+  activityScope?: ActivityScope;
+  cycle?: ActivityScope;
   windows: Observation[];
   latest?: Observation;
   identity: DashboardStatus["identity"];

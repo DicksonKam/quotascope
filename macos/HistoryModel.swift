@@ -19,7 +19,9 @@ struct HistoryPoint: Decodable {
     let chartSegment: Int?
     var remaining: Double { min(100, max(0, 100 - used)) }
 }
+struct CycleInfo: Decodable { let available: Bool; let from: Double?; let reason: String }
 struct HistoryResponse: Decodable {
+    let cycle: CycleInfo?
     let latest: Allowance?
     let version: Int
     let history: [HistoryPoint]

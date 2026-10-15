@@ -18,7 +18,7 @@ Both login entries run after signing into the graphical macOS session, including
 
 ## Everyday use
 
-Click the gauge in the menu bar to see **allowance over time**. Choose 7, 30 or 90 days and inspect recorded remaining percentages. Account-read/local-log source selection is available, with a window selector when multiple windows exist. Gaps, resets and continuity changes break the line; sampled server segments retain their continuity. The current balance, reset date and monitor health appear below the graph. Daily token activity stays in the full dashboard.
+Click the gauge in the menu bar to see **allowance over time**. Choose Current cycle, 7, 30 or 90 days and inspect recorded remaining percentages. Account-read/local-log source selection is available, with a window selector when multiple windows exist. Gaps, resets and continuity changes break the line; sampled server segments retain their continuity. Current cycle uses the reported reset minus duration as an explicitly inferred start; unavailable timing is explained. The current balance, reset date and monitor health appear below the graph. Daily token activity stays in the full dashboard.
 
 The panel is anchored below its menu bar icon and constrained to that display's usable area. It scrolls on small displays; graph loading and window changes cannot enlarge it offscreen. Click outside or press Escape to dismiss it. **Refresh allowance and history** requests one account read and reloads history; it does not enable a paused collector. **Open dashboard** opens the detailed local dashboard in your default browser. The panel follows the Mac's light/dark appearance.
 

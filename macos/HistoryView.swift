@@ -9,6 +9,7 @@ struct HistoryView: View {
     private var inspected: PlotPoint? { selection.inspected }
     private var points: [PlotPoint] {
         guard let history = model.history else { return [] }
+        if model.days == 0 && history.cycle?.available != true { return [] }
         return allowancePlot(local ? history.localHistory : history.history, local: local)
     }
     private let unit = "% remaining"
@@ -18,7 +19,7 @@ struct HistoryView: View {
                 Text("Allowance over time").font(.system(size: 15, weight: .semibold))
                 Spacer()
                 Picker("History range", selection: $model.days) {
-                    Text("7 days").tag(7); Text("30 days").tag(30); Text("90 days").tag(90)
+                    Text("Current cycle").tag(0); Text("7 days").tag(7); Text("30 days").tag(30); Text("90 days").tag(90)
                 }.labelsHidden().fixedSize()
             }
             HStack {
@@ -32,6 +33,10 @@ struct HistoryView: View {
                     Text("Account reads").tag(false); Text("Local logs").tag(true)
                 }.labelsHidden().fixedSize()
             }
+            if model.days == 0, let cycle = model.history?.cycle {
+                Text(cycle.available ? "Inferred cycle start: \(Date(timeIntervalSince1970: (cycle.from ?? 0) / 1000).formatted(date: .abbreviated, time: .shortened))" : cycle.reason)
+                    .font(.system(size: 10)).foregroundStyle(.secondary)
+            }
             Group {
                 if points.isEmpty {
                     VStack(spacing: 8) {
@@ -40,7 +45,7 @@ struct HistoryView: View {
                         Text("Recorded history appears here as monitoring continues.").font(.system(size: 11)).foregroundStyle(.secondary)
                     }.frame(maxWidth: .infinity, minHeight: 190)
                 } else {
-                    historyChart.frame(height: 190)
+                    historyChart.frame(height: model.days == 0 ? 170 : 190)
                 }
             }
             VStack(alignment: .leading, spacing: 5) {

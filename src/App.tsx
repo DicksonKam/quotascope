@@ -59,6 +59,7 @@ const detailPages = ["Activity", "Evidence", "Comparisons"];
 export function App() {
   const [timezone, setTimezone] = useState(timezonePreference);
   const [selectedWindow, setSelectedWindow] = useState("");
+  const [activityScope, setActivityScope] = useState<"all" | "current">("all");
   const [data, setData] = useState<DashboardState | null>(null),
     [page, setPage] = useState("Overview"),
     [busy, setBusy] = useState(""),
@@ -80,7 +81,9 @@ export function App() {
     if (sequence === null) return;
     const params = new URLSearchParams({
       view: page.toLowerCase(),
-      days: range,
+      activityScope,
+      days: range === "current" ? "30" : range,
+      historyScope: range === "current" ? "current" : "range",
       window: selectedWindow,
       timezone,
     });
@@ -170,7 +173,7 @@ export function App() {
   }, []);
   useEffect(() => {
     void loadRef.current();
-  }, [page, range, selectedWindow, timezone]);
+  }, [page, range, selectedWindow, timezone, activityScope]);
   const runningRequest =
     data?.operations.scan?.state === "running" ||
     data?.operations.backup?.state === "running";
@@ -193,7 +196,10 @@ export function App() {
   );
   const viewReady =
     data?.query?.view === page.toLowerCase() &&
-    data.query.timezone === timezone;
+    data.query.timezone === timezone &&
+    (page !== "Activity" ||
+      ((data.query.activityScope ?? "all") === activityScope &&
+        data.query.window === (latest ? windowKey(latest) : "")));
   const usage = data?.usage,
     attempt = data?.attempts?.[0];
   const fresh =
@@ -213,7 +219,9 @@ export function App() {
         }
     : null;
   const historyReady =
-    data?.query?.days === Number(range) &&
+    data?.query?.days === (range === "current" ? 30 : Number(range)) &&
+    (data.query.historyScope ?? "range") ===
+      (range === "current" ? "current" : "range") &&
     data?.query?.window === (latest ? windowKey(latest) : "");
   const allHistory: Observation[] = !historyReady
     ? []
@@ -221,7 +229,12 @@ export function App() {
       ? (selectedHistory?.history ?? [])
       : (selectedHistory?.localHistory ?? []);
   const points = allHistory
-    .filter((p) => p.at >= now - Number(range) * 86400000)
+    .filter((p) =>
+      range === "current"
+        ? data?.cycle?.available === true &&
+          p.at >= (data.cycle.from ?? Infinity)
+        : p.at >= now - Number(range) * 86400000,
+    )
     .map((p) => ({ ...p, remaining: remainingPercent(p.used) }));
   return (
     <div className="app-shell">
@@ -537,6 +550,7 @@ export function App() {
                             value={range}
                             onChange={(e) => setRange(e.target.value)}
                           >
+                            <option value="current">Current cycle</option>
                             <option value="7">7 days</option>
                             <option value="30">30 days</option>
                             <option value="90">90 days</option>
@@ -563,9 +577,22 @@ export function App() {
                             kept separate.
                           </p>
                         )}
+                      {range === "current" && historyReady && (
+                        <p className="subtle-note" role="status">
+                          {data?.cycle?.available &&
+                          data.cycle.from !== null ? (
+                            <>
+                              Inferred cycle start: {date(data.cycle.from)} ·{" "}
+                              {timezone}.{" "}
+                            </>
+                          ) : null}
+                          {data?.cycle?.reason ??
+                            "Awaiting current cycle timing."}
+                        </p>
+                      )}
                       <Chart
                         points={points}
-                        label={`Remaining allowance from ${historySource} in the last ${range} days`}
+                        label={`Remaining allowance from ${historySource} · ${range === "current" ? "current inferred cycle" : `last ${range} days`}`}
                         coverageGaps={
                           historySource === "account"
                             ? data.coverage?.gaps
@@ -589,143 +616,227 @@ export function App() {
                   </details>
                 </>
               )}
-              {page === "Activity" && viewReady && usage && (
-                <>
-                  <div className="metric-strip">
+              {page === "Activity" && (
+                <section className="card">
+                  <div className="card-heading">
                     <div>
-                      <span>Input tokens</span>
-                      <strong>{compact(usage.input)}</strong>
+                      <h3>Activity period</h3>
+                      <p>
+                        Recorded local tokens, not shares of allowance consumed.
+                      </p>
                     </div>
-                    <div>
-                      <span>Cached input subset</span>
-                      <strong>{compact(usage.cached)}</strong>
-                    </div>
-                    <div>
-                      <span>Output tokens</span>
-                      <strong>{compact(usage.output)}</strong>
-                    </div>
-                    <div>
-                      <span>Reasoning output subset</span>
-                      <strong>{compact(usage.reasoning)}</strong>
+                    <div className="chart-controls">
+                      <select
+                        aria-label="Activity period"
+                        value={activityScope}
+                        onChange={(e) =>
+                          setActivityScope(e.target.value as "all" | "current")
+                        }
+                      >
+                        <option value="all">All history</option>
+                        <option value="current">
+                          Current allowance window
+                        </option>
+                      </select>
+                      {activityScope === "current" && windows.length > 1 && (
+                        <select
+                          aria-label="Activity allowance window"
+                          value={latest ? windowKey(latest) : ""}
+                          onChange={(e) => setSelectedWindow(e.target.value)}
+                        >
+                          {windows.map((w) => (
+                            <option key={windowKey(w)} value={windowKey(w)}>
+                              {windowLabel(w)}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                   </div>
-                  <section className="card">
-                    <div className="card-heading">
-                      <div>
-                        <h3>Daily local token activity</h3>
+                  {!viewReady ? (
+                    <p className="subtle-note">
+                      Loading selected activity period…
+                    </p>
+                  ) : activityScope === "current" && data?.activityScope ? (
+                    <div className="subtle-note" role="status">
+                      {data.activityScope.available &&
+                        data.activityScope.from !== null && (
+                          <p>
+                            {latest && windowLabel(latest)} · Inferred start:{" "}
+                            {date(data.activityScope.from)} · Next reset:{" "}
+                            {date(data.activityScope.reset!)} · {timezone}
+                          </p>
+                        )}
+                      <p>{data.activityScope.reason}</p>
+                      {data.activityScope.available && (
                         <p>
-                          Past 90 days · {timezone} calendar days · all locally
-                          observed accounts
+                          Selected account only. Known turns crossing the start
+                          and cumulative estimates are excluded (
+                          {usage?.boundaryExcluded ?? 0} records). Responses
+                          with unknown start times use completion time.
                         </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="subtle-note">
+                      All available imported local history, including logs from
+                      before installation.
+                    </p>
+                  )}
+                </section>
+              )}
+              {page === "Activity" &&
+                viewReady &&
+                usage &&
+                (activityScope === "all" ||
+                  data?.activityScope?.available === true) && (
+                  <>
+                    <div className="metric-strip">
+                      <div>
+                        <span>Input tokens</span>
+                        <strong>{compact(usage.input)}</strong>
                       </div>
-                      <span className="tag">
-                        {usage.days[0]?.first
-                          ? date(usage.days[0].first, {
-                              hour: undefined,
-                              minute: undefined,
-                            })
-                          : "Awaiting history"}{" "}
-                        onwards
+                      <div>
+                        <span>Cached input subset</span>
+                        <strong>{compact(usage.cached)}</strong>
+                      </div>
+                      <div>
+                        <span>Output tokens</span>
+                        <strong>{compact(usage.output)}</strong>
+                      </div>
+                      <div>
+                        <span>Reasoning output subset</span>
+                        <strong>{compact(usage.reasoning)}</strong>
+                      </div>
+                    </div>
+                    <section className="card">
+                      <div className="card-heading">
+                        <div>
+                          <h3>Daily local token activity</h3>
+                          <p>
+                            {activityScope === "current"
+                              ? "Within the inferred window · selected account · chart limited to the past 90 days"
+                              : "Past 90 days · all locally observed accounts"}{" "}
+                            · {timezone} calendar days
+                          </p>
+                        </div>
+                        <span className="tag">
+                          {usage.days[0]?.first
+                            ? date(usage.days[0].first, {
+                                hour: undefined,
+                                minute: undefined,
+                              })
+                            : "Awaiting history"}{" "}
+                          onwards
+                        </span>
+                      </div>
+                      <Chart
+                        points={usage.days.map((d) => ({
+                          at: d.first,
+                          total: d.total,
+                        }))}
+                        field="total"
+                        unit="Tokens / day"
+                        label="Daily locally observed input plus output tokens"
+                      />
+                      <p className="subtle-note">
+                        Observed over the last wall-clock hour:{" "}
+                        {compact(usage.recentTokensPerMinute)} tokens/min.
+                        Missing log activity is not included.
+                      </p>
+                    </section>
+                    <p className="subtle-note">
+                      Legacy-only estimates: {compact(usage.fallbackTokens)}{" "}
+                      tokens across {num(usage.fallbackRecords)} cumulative
+                      deltas. These estimates are excluded from the response
+                      totals.
+                    </p>
+                    <div className="section-title">
+                      <h2>Usage by model</h2>
+                      <span>
+                        {activityScope === "current"
+                          ? "Current inferred window"
+                          : "All available local history"}{" "}
+                        · {usage.excluded} anomalous records excluded
                       </span>
                     </div>
-                    <Chart
-                      points={usage.days.map((d) => ({
-                        at: d.first,
-                        total: d.total,
-                      }))}
-                      field="total"
-                      unit="Tokens / day"
-                      label="Daily locally observed input plus output tokens"
-                    />
-                    <p className="subtle-note">
-                      Observed over the last wall-clock hour:{" "}
-                      {compact(usage.recentTokensPerMinute)} tokens/min. Missing
-                      log activity is not included.
-                    </p>
-                  </section>
-                  <p className="subtle-note">
-                    Legacy-only estimates: {compact(usage.fallbackTokens)}{" "}
-                    tokens across {num(usage.fallbackRecords)} cumulative
-                    deltas. These estimates are excluded from the response
-                    totals.
-                  </p>
-                  <div className="section-title">
-                    <h2>Usage by model</h2>
-                    <span>
-                      All available local history · {usage.excluded} anomalous
-                      records excluded
-                    </span>
-                  </div>
-                  {usage.modelsTruncated && (
-                    <p className="subtle-note">
-                      Showing the 50 models with the most observed tokens.
-                    </p>
-                  )}
-                  <section className="card model-list">
-                    {usage.byModel.map((m) => (
-                      <div className="model-row" key={m.name}>
-                        <div className="model-symbol">
-                          <Layers3 size={18} />
+                    {usage.modelsTruncated && (
+                      <p className="subtle-note">
+                        Showing the 50 models with the most observed tokens.
+                      </p>
+                    )}
+                    <section className="card model-list">
+                      {usage.byModel.map((m) => (
+                        <div className="model-row" key={m.name}>
+                          <div className="model-symbol">
+                            <Layers3 size={18} />
+                          </div>
+                          <div className="model-name">
+                            <strong>{m.name}</strong>
+                            <small>
+                              {num(m.responses)} responses
+                              {m.system
+                                ? " · System activity; metering unverified"
+                                : ""}
+                            </small>
+                          </div>
+                          <div className="model-bar">
+                            <div
+                              style={{
+                                width: `${Math.max(1, (m.total / Math.max(1, usage.total)) * 100)}%`,
+                              }}
+                            />
+                          </div>
+                          <strong className="model-value">
+                            {compact(m.total)}
+                            <small>
+                              tokens ·{" "}
+                              {(
+                                (m.total / Math.max(1, usage.total)) *
+                                100
+                              ).toFixed(1)}
+                              % of recorded tokens
+                            </small>
+                          </strong>
                         </div>
-                        <div className="model-name">
-                          <strong>{m.name}</strong>
-                          <small>
-                            {num(m.responses)} responses
-                            {m.system
-                              ? " · System activity; metering unverified"
-                              : ""}
-                          </small>
+                      ))}
+                    </section>
+                    {usage.settingsTruncated && (
+                      <p className="subtle-note">
+                        Showing the 100 settings groups with the most observed
+                        tokens.
+                      </p>
+                    )}
+                    <details className="settings-detail">
+                      <summary>Recorded model settings</summary>
+                      <p className="subtle-note">
+                        Unknown speed or effort remains unknown. These groups
+                        describe metadata, not independently measured allowance
+                        factors.
+                      </p>
+                      {(usage.bySettings ?? []).map((s) => (
+                        <div className="detail-row" key={s.name}>
+                          <span>{s.name}</span>
+                          <strong>{compact(s.total)} tokens</strong>
                         </div>
-                        <div className="model-bar">
-                          <div
-                            style={{
-                              width: `${Math.max(1, (m.total / Math.max(1, usage.total)) * 100)}%`,
-                            }}
-                          />
+                      ))}
+                    </details>
+                    <div className="section-title">
+                      <h2>Sessions</h2>
+                      <span>Up to 40 sessions · pseudonymous identifiers</span>
+                    </div>
+                    <section className="card session-list">
+                      {usage.sessions.map((s) => (
+                        <div className="session-row" key={s.name}>
+                          <span className="mono">{s.name.slice(0, 10)}</span>
+                          <span>{s.models.join(", ")}</span>
+                          <span>{date(s.last)}</span>
+                          <strong>{compact(s.total)}</strong>
                         </div>
-                        <strong className="model-value">
-                          {compact(m.total)}
-                          <small>tokens</small>
-                        </strong>
-                      </div>
-                    ))}
-                  </section>
-                  {usage.settingsTruncated && (
-                    <p className="subtle-note">
-                      Showing the 100 settings groups with the most observed
-                      tokens.
-                    </p>
-                  )}
-                  <details className="settings-detail">
-                    <summary>Recorded model settings</summary>
-                    <p className="subtle-note">
-                      Unknown speed or effort remains unknown. These groups
-                      describe metadata, not independently measured allowance
-                      factors.
-                    </p>
-                    {(usage.bySettings ?? []).map((s) => (
-                      <div className="detail-row" key={s.name}>
-                        <span>{s.name}</span>
-                        <strong>{compact(s.total)} tokens</strong>
-                      </div>
-                    ))}
-                  </details>
-                  <div className="section-title">
-                    <h2>Sessions</h2>
-                    <span>Up to 40 sessions · pseudonymous identifiers</span>
-                  </div>
-                  <section className="card session-list">
-                    {usage.sessions.map((s) => (
-                      <div className="session-row" key={s.name}>
-                        <span className="mono">{s.name.slice(0, 10)}</span>
-                        <span>{s.models.join(", ")}</span>
-                        <span>{date(s.last)}</span>
-                        <strong>{compact(s.total)}</strong>
-                      </div>
-                    ))}
-                  </section>
-                </>
-              )}
+                      ))}
+                    </section>
+                  </>
+                )}
               {page === "Evidence" && viewReady && rate && (
                 <>
                   {data.coverage && (

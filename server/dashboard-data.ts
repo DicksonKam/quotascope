@@ -1,3 +1,4 @@
+import { activityScope, activityEvents } from "./activity-scope.ts";
 import { dayCutoff } from "../shared/time.ts";
 import type { DashboardDetails } from "../shared/api.ts";
 import type { Store } from "./store.ts";
@@ -43,21 +44,33 @@ export class DashboardData {
       const windows = sortWindows(current?.windows ?? []);
       const selected =
         windows.find((w) => windowKey(w) === query.window) ?? windows[0];
+      const cycle = activityScope("current", current, selected, now);
+      const historyScope = query.historyScope ?? "range";
+      const historyFrom =
+        historyScope === "current"
+          ? (cycle.from ?? now + 1)
+          : now - days * 86400000;
+      const historyAvailable = historyScope !== "current" || cycle.available;
       const historyKey = JSON.stringify([
         revisions.observations,
         current?.id,
         selected && windowKey(selected),
         days,
+        historyScope,
+        historyScope === "current" ? cycle : null,
       ]);
       let histories = this.histories.get(historyKey);
       if (!histories) {
-        const from = now - days * 86400000;
+        const from = historyFrom;
         const account =
-          selected && current?.identity === "provider"
+          selected && historyAvailable && current?.identity === "provider"
             ? queryHistory(store, selected, "account", from, now)
-            : { points: selected ? [selected] : [], truncated: false };
+            : {
+                points: selected && historyAvailable ? [selected] : [],
+                truncated: false,
+              };
         const local =
-          selected && current?.identity === "provider"
+          selected && historyAvailable && current?.identity === "provider"
             ? queryHistory(store, selected, "local", from, now)
             : { points: [], truncated: false };
         histories = {
@@ -81,10 +94,10 @@ export class DashboardData {
       histories = {
         ...histories,
         history: histories.history.filter(
-          (o: Observation) => o.at >= now - days * 86400000,
+          (o: Observation) => historyAvailable && o.at >= historyFrom,
         ),
         localHistory: histories.localHistory.filter(
-          (o: Observation) => o.at >= now - days * 86400000,
+          (o: Observation) => historyAvailable && o.at >= historyFrom,
         ),
       };
       // Pace freshness is checked on every reply even if the sampled history is cached.
@@ -92,13 +105,30 @@ export class DashboardData {
         selected && now - selected.at <= 120000
           ? histories.rate
           : conservativePace([], now);
+      const scope = activityScope(
+        query.activityScope ?? "all",
+        current,
+        selected,
+        now,
+      );
+      const scopeKey = JSON.stringify(scope);
       const usage = this.cached(
-        "usage",
-        revisions.events + ":" + timezone,
+        "usage-" + scope.mode,
+        revisions.events +
+          ":" +
+          timezone +
+          ":" +
+          scopeKey +
+          (scope.mode === "current" ? ":" + Math.floor(now / 60000) : ""),
         () => {
-          const all = summarize(store.events(), timezone);
+          const scoped =
+            scope.mode === "current"
+              ? activityEvents(store, scope, now)
+              : { events: store.events(), boundaryExcluded: 0 };
+          const all = summarize(scoped.events, timezone);
           return {
             ...all,
+            boundaryExcluded: scoped.boundaryExcluded,
             days: all.days.slice(-90),
             byModel: all.byModel.slice(0, 50),
             bySettings: all.bySettings.slice(0, 100),
@@ -111,21 +141,11 @@ export class DashboardData {
         view === "activity"
           ? this.cached(
               "recentRate",
-              revisions.events + ":" + Math.floor(now / 60000),
-              () => {
-                const recent = (
-                  store.db
-                    .prepare(
-                      "SELECT data FROM events WHERE at>? AND at<=? ORDER BY at",
-                    )
-                    .all(now - 3600000, now) as { data: string }[]
-                ).map((r) => JSON.parse(r.data));
-                return (
-                  recent
-                    .filter(trusted)
-                    .reduce((sum, e) => sum + e.input + e.output, 0) / 60
-                );
-              },
+              revisions.events + ":" + Math.floor(now / 60000) + ":" + scopeKey,
+              () =>
+                activityEvents(store, scope, now, now - 3600000)
+                  .events.filter(trusted)
+                  .reduce((sum, e) => sum + e.input + e.output, 0) / 60,
             )
           : 0;
       const coverage = this.cached(
@@ -212,6 +232,8 @@ export class DashboardData {
           : [];
       const cutoff = dayCutoff(now, timezone);
       const result = {
+        activityScope: scope,
+        cycle,
         windows,
         latest: selected,
         identity: current?.identity ?? null,
@@ -244,6 +266,8 @@ export class DashboardData {
             : accounts,
         issues,
         query: {
+          activityScope: scope.mode,
+          historyScope,
           days,
           window: selected ? windowKey(selected) : "",
           view,

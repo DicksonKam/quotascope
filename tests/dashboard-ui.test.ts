@@ -252,3 +252,138 @@ test("mounted dashboard applies control responses before delayed reads, rejects 
     }
   }
 });
+
+test("activity scope hides old totals while loading and explains unavailable cycle timing", async () => {
+  const dom = new JSDOM('<div id="root"></div>', {
+    url: "http://localhost:4317",
+    pretendToBeVisual: true,
+  });
+  const globals: Record<string, unknown> = {
+    window: dom.window,
+    document: dom.window.document,
+    localStorage: dom.window.localStorage,
+    HTMLElement: dom.window.HTMLElement,
+    IS_REACT_ACT_ENVIRONMENT: true,
+    ResizeObserver: class {
+      observe() {}
+      disconnect() {}
+    },
+  };
+  const previous = new Map(
+    [...Object.keys(globals), "fetch"].map((k) => [
+      k,
+      Object.getOwnPropertyDescriptor(globalThis, k),
+    ]),
+  );
+  for (const [key, value] of Object.entries(globals))
+    Object.defineProperty(globalThis, key, {
+      value,
+      configurable: true,
+      writable: true,
+    });
+  dom.window.localStorage.setItem("qs-timezone", "UTC");
+  const { createRoot } = await import("react-dom/client");
+  const root = createRoot(dom.window.document.getElementById("root")!);
+  const base = fixture();
+  let pending: (() => void) | undefined;
+  const queries: URLSearchParams[] = [];
+  globalThis.fetch = (async (input: string) => {
+    const q = new URL(input, "http://localhost").searchParams;
+    queries.push(q);
+    const scoped = q.get("activityScope") === "current";
+    const response = {
+      ...base,
+      query: {
+        ...base.query,
+        view: q.get("view"),
+        activityScope: q.get("activityScope"),
+        historyScope: q.get("historyScope"),
+      },
+      activityScope: {
+        mode: scoped ? "current" : "all",
+        available: !scoped,
+        from: null,
+        reset: null,
+        account: null,
+        reason:
+          "The provider has not supplied a usable reset time and window duration.",
+      },
+      usage: {
+        input: 12345,
+        cached: 0,
+        output: 0,
+        reasoning: 0,
+        total: 12345,
+        responses: 1,
+        excluded: 0,
+        fallbackTokens: 0,
+        fallbackRecords: 0,
+        first: null,
+        last: Date.now(),
+        byModel: [],
+        bySettings: [],
+        sessions: [],
+        days: [],
+        recentTokensPerMinute: 0,
+      },
+    };
+    if (scoped)
+      return new Promise<Response>((resolve) => {
+        pending = () => resolve(Response.json(response));
+      });
+    return Response.json(response);
+  }) as typeof fetch;
+  const text = () => dom.window.document.body.textContent!;
+  const click = async (name: string) => {
+    await act(async () => {
+      [...dom.window.document.querySelectorAll("button")]
+        .find((b) => b.textContent === name)!
+        .click();
+    });
+  };
+  try {
+    await act(async () => {
+      root.render(React.createElement(App));
+    });
+    await click("Details");
+    await click("Activity");
+    assert.ok(text().includes("Input tokens"));
+    const select = dom.window.document.querySelector<HTMLSelectElement>(
+      '[aria-label="Activity period"]',
+    )!;
+    await act(async () => {
+      select.value = "current";
+      select.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    });
+    assert.ok(text().includes("Loading selected activity period"));
+    assert.ok(!text().includes("Input tokens"));
+    assert.equal(queries.at(-1)?.get("activityScope"), "current");
+    await act(async () => {
+      pending!();
+    });
+    assert.ok(text().includes("provider has not supplied"));
+    assert.ok(!text().includes("Input tokens"));
+    await act(async () => {
+      select.value = "all";
+      select.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    });
+    assert.ok(text().includes("Input tokens"));
+    await click("Overview");
+    const range = dom.window.document.querySelector<HTMLSelectElement>(
+      '[aria-label="History range"]',
+    )!;
+    await act(async () => {
+      range.value = "current";
+      range.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    });
+    assert.equal(queries.at(-1)?.get("historyScope"), "current");
+    assert.equal(queries.at(-1)?.get("days"), "30");
+  } finally {
+    await act(async () => root.unmount());
+    dom.window.close();
+    for (const [key, descriptor] of previous) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else Reflect.deleteProperty(globalThis, key);
+    }
+  }
+});

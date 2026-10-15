@@ -69,3 +69,13 @@ Solid strokes connect readings within a coherent window; dashed connectors indic
 Current supported ranges are 7, 30 and 90 days, with up to 600 displayed points per source. Boundary-heavy charts may show only the most recent portion. Full raw history remains exportable. Activity shows 90 calendar days in the selected timezone while totals remain all-time. Rate estimates require enough recent direct readings and never predict an exhaustion time.
 
 Datetime inputs use the selected timezone. Nonexistent or repeated daylight-saving wall times are rejected; select UTC to enter such an instant explicitly. Exports retain UTC plus a legacy, explicitly named Hong Kong rendering for schema compatibility.
+
+## Activity periods and allowance cycles
+
+On **Details → Activity**, choose **All history** or **Current allowance window**. The selection applies to token totals, model shares, settings, sessions and daily activity. All history includes imported logs from before installation and all locally observed accounts; its chart displays the past 90 days. The current-window view uses the selected account and window, and labels the inferred start and next reset. The chart remains capped at 90 days for unusually long windows.
+
+The inferred start is the provider's reported next reset minus the reported window duration. This is not proof of an observed return to 100%. Percentage drops or increases alone do not establish a renewal. Missing timing, expired windows, stale readings and unknown account identity make the current-window view unavailable; it never silently falls back to all-history totals. Actual early/manual resets or reporting changes can make this inference approximate.
+
+Model shares describe recorded input plus output tokens, not quota charges. Current-window tokens are scoped by response completion timestamp and account. Known turns that began before the boundary and cumulative fallback estimates are excluded; unknown turn starts use completion time. Missing devices/logs and unverified system activity prevent interpreting these as a complete account ledger. Multiple allowance buckets do not establish token-to-bucket attribution.
+
+The **Allowance history** range selector on Overview and the menu bar also offers **Current cycle**, using the same inferred start. Existing 7/30/90-day ranges remain available. Gaps and resets remain visible; no artificial 100% starting point is inserted. Earlier-cycle browsing is not included.

@@ -538,6 +538,23 @@ try {
       activity.usage.total === 1100,
     "bounded activity details preserve all-time totals",
   );
+  const cycleActivity = await (
+    await fetch(
+      base +
+        "/api/state?view=activity&activityScope=current&historyScope=current",
+    )
+  ).json();
+  verify(
+    cycleActivity.query.activityScope === "current" &&
+      cycleActivity.query.historyScope === "current" &&
+      typeof cycleActivity.activityScope.available === "boolean",
+    "cycle scopes pass through HTTP and the read worker",
+  );
+  verify(
+    (await fetch(base + "/api/state?activityScope=bad")).status === 400 &&
+      (await fetch(base + "/api/state?historyScope=bad")).status === 400,
+    "invalid activity and history scopes rejected",
+  );
   const comparisonView = await (
     await fetch(base + "/api/state?view=comparisons")
   ).json();

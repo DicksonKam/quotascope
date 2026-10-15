@@ -134,6 +134,15 @@ func payload(version: Int = 1, used: Double = 27, ok: Bool = true, enabled: Bool
         precondition(model.history == nil && model.historyBusy)
         await newRange.value
         precondition(model.history?.history.first?.used == 70 && !model.historyBusy)
+        FixtureProtocol.handler = { request in
+            let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!
+            precondition(query.first(where: { $0.name == "historyScope" })?.value == "current")
+            precondition(query.first(where: { $0.name == "days" })?.value == "30")
+            return (200, Data(String(data: historyPayload, encoding: .utf8)!.dropLast().appending(",\"cycle\":{\"available\":false,\"from\":null,\"reason\":\"Await a fresh reading\"}}").utf8))
+        }
+        model.days = 0
+        await model.updateHistory(force: true)
+        precondition(model.history?.cycle?.available == false && model.history?.cycle?.reason == "Await a fresh reading")
         print("Passed history checks: screen bounds, negative display origins, small screens, gap/reset segmentation, remaining percentages, bounded history queries, caching and failure recovery.")
         print("Passed native model checks: decoding, percentages, freshness, configuration, CSRF refresh sequence, failures, recovery, single-flight and redirect refusal.")
     }

@@ -328,3 +328,136 @@ test("an unexpected reader exit is recoverable without losing committed history"
     store.close();
   }
 });
+
+test("current activity and cycle history share an inferred boundary and isolate account and response timing", () => {
+  const store = fixture();
+  const start = now - 3600000;
+  try {
+    const snapshot = current(store);
+    snapshot.windows[0] = observation(now, 30, {
+      duration: 120,
+      reset: (now + 3600000) / 1000,
+    });
+    snapshot.windows.push(
+      observation(now, 60, {
+        slot: "secondary",
+        duration: 240,
+        reset: (now + 3600000) / 1000,
+      }),
+    );
+    store.saveAccountSnapshot(snapshot);
+    const rows = [
+      { ...event("before", start - 1), model: "old" },
+      { ...event("at-start", start), model: "one", turnStart: start },
+      { ...event("inside", now - 1000), model: "two", turnStart: start + 1 },
+      {
+        ...event("other-account", now - 1000),
+        account: "other",
+        model: "other",
+      },
+      { ...event("crossing", now - 1000), turnStart: start - 1 },
+      {
+        ...event("fallback", now - 1000),
+        kind: "fallback" as const,
+        flags: ["cumulative-estimate"],
+      },
+      { ...event("future", now + 1), model: "future" },
+    ];
+    for (const row of rows) store.event(row);
+    for (const at of [start - 1, start, now - 1000])
+      store.observe(
+        observation(at, 20, { duration: 120, reset: (now + 3600000) / 1000 }),
+      );
+    const reader = new DashboardData(store);
+    const query = {
+      view: "activity" as const,
+      activityScope: "current" as const,
+      historyScope: "current" as const,
+      timezone: "UTC",
+    };
+    const result = reader.read(query, now);
+    assert.equal(result.activityScope?.from, start);
+    assert.match(result.activityScope!.reason, /inferred/i);
+    assert.equal(result.usage.total, 220);
+    assert.deepEqual(result.usage.byModel.map((m) => m.name).sort(), [
+      "one",
+      "two",
+    ]);
+    assert.equal(result.usage.boundaryExcluded, 2);
+    assert.equal(
+      result.usage.days.reduce((n, d) => n + d.total, 0),
+      220,
+    );
+    assert.equal(
+      result.usage.sessions.reduce((n, d) => n + d.total, 0),
+      220,
+    );
+    assert.ok(result.history.every((o) => o.at >= start));
+    assert.ok(result.history.some((o) => o.at === start));
+    const wider = reader.read(
+      { ...query, window: '["codex","secondary"]' },
+      now,
+    );
+    assert.equal(wider.activityScope?.from, start - 7200000);
+    assert.ok(wider.usage.byModel.some((m) => m.name === "old"));
+    const all = reader.read({ view: "activity", activityScope: "all" }, now);
+    assert.ok(all.usage.total > result.usage.total);
+    assert.ok(all.usage.byModel.some((m) => m.name === "other"));
+    const expired = reader.read(query, now + 3600001);
+    assert.equal(expired.activityScope?.available, false);
+    assert.equal(expired.usage.total, 0);
+    assert.equal(expired.history.length, 0);
+  } finally {
+    store.close();
+  }
+});
+
+test("unusable cycle timing and identity never silently fall back to all activity", () => {
+  const store = fixture();
+  try {
+    const snapshot = current(store);
+    store.event(event("retained"));
+    const reader = new DashboardData(store);
+    for (const override of [
+      { reset: null },
+      { duration: null },
+      { duration: 0 },
+      { reset: now / 1000 },
+      { duration: 1, reset: (now + 3600000) / 1000 },
+      { at: now - 120001 },
+      { at: now + 60001 },
+      { source: "local" as const },
+    ]) {
+      snapshot.windows = [
+        observation(now, 20, {
+          duration: 120,
+          reset: (now + 3600000) / 1000,
+          ...override,
+        }),
+      ];
+      store.saveAccountSnapshot(snapshot);
+      const result = reader.read(
+        { view: "activity", activityScope: "current", historyScope: "current" },
+        now,
+      );
+      assert.equal(
+        result.activityScope?.available,
+        false,
+        JSON.stringify(override),
+      );
+      assert.equal(result.usage.total, 0);
+      assert.equal(result.history.length, 0);
+    }
+    snapshot.identity = "unknown";
+    snapshot.windows = [
+      observation(now, 20, { duration: 120, reset: (now + 3600000) / 1000 }),
+    ];
+    store.saveAccountSnapshot(snapshot);
+    assert.equal(
+      reader.read({ activityScope: "current" }, now).activityScope?.available,
+      false,
+    );
+  } finally {
+    store.close();
+  }
+});

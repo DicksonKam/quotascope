@@ -181,8 +181,12 @@ function dashboardQuery(url: URL): DashboardQuery {
     Intl.DateTimeFormat().resolvedOptions().timeZone;
   const days = Number(url.searchParams.get("days") ?? 30),
     view = url.searchParams.get("view") ?? "overview",
+    activityScope = url.searchParams.get("activityScope") ?? "all",
+    historyScope = url.searchParams.get("historyScope") ?? "range",
     window = url.searchParams.get("window") ?? "";
   if (
+    !["range", "current"].includes(historyScope) ||
+    !["all", "current"].includes(activityScope) ||
     ![7, 30, 90].includes(days) ||
     !["overview", "activity", "evidence", "comparisons"].includes(view) ||
     window.length > 200 ||
@@ -190,6 +194,8 @@ function dashboardQuery(url: URL): DashboardQuery {
   )
     throw Error("Invalid dashboard query");
   return {
+    activityScope: activityScope as "all" | "current",
+    historyScope: historyScope as "range" | "current",
     days: days as 7 | 30 | 90,
     view: view as DashboardQuery["view"],
     window,
