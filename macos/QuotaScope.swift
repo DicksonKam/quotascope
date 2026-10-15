@@ -21,82 +21,67 @@ struct PanelView: View {
     private var accent: Color { scheme == .dark ? Color(red: 0.62, green: 0.84, blue: 0.72) : Color(red: 0.21, green: 0.47, blue: 0.40) }
     var body: some View {
         TimelineView(.periodic(from: .now, by: 15)) { context in
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 10) {
-                    Gauge().stroke(accent, style: StrokeStyle(lineWidth: 2, lineCap: .round)).frame(width: 28, height: 28)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("QuotaScope").font(.system(size: 18, weight: .semibold))
-                        Text("Room to build.").font(.system(size: 11)).foregroundStyle(.secondary)
-                    }
+                    Gauge().stroke(accent, style: StrokeStyle(lineWidth: 2, lineCap: .round)).frame(width: 25, height: 25)
+                    Text("QuotaScope").font(.system(size: 18, weight: .semibold))
                     Spacer()
-                    Button(action: { Task { await model.update(refresh: true) } }) {
-                        Image(systemName: "arrow.clockwise").frame(width: 26, height: 26)
-                    }.buttonStyle(.borderless).disabled(model.busy).help("Refresh account allowance").accessibilityLabel("Refresh allowance")
-                }
-                HStack(spacing: 7) {
-                    Circle().fill(healthy(context.date) ? accent : Color.orange).frame(width: 6, height: 6)
-                    Text(model.headline(at: context.date)).font(.system(size: 12, weight: .medium))
-                    if model.busy { Spacer(); ProgressView().controlSize(.small) }
+                    if model.busy || model.historyBusy { ProgressView().controlSize(.small) }
+                    Button(action: { Task { await model.update(refresh: true); await model.updateHistory(force: true) } }) {
+                        Image(systemName: "arrow.clockwise").frame(width: 24, height: 24)
+                    }.buttonStyle(.borderless).disabled(model.busy).help("Refresh allowance and history").accessibilityLabel("Refresh allowance and history")
                 }
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
-                        if let status = model.status, !status.windows.isEmpty {
-                            ForEach(status.windows) { window in
-                                VStack(alignment: .leading, spacing: 10) {
-                                    Text(window.title).font(.system(size: 13, weight: .semibold))
-                                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                                        Text(window.remaining, format: .number.precision(.fractionLength(0...1))).font(.system(size: 38, weight: .medium, design: .rounded))
-                                        Text("% remaining").font(.system(size: 12)).foregroundStyle(.secondary)
-                                    }
-                                    ProgressView(value: window.remaining, total: 100).tint(accent).accessibilityLabel("Remaining allowance")
-                                    if let reset = window.reset {
-                                        let resetDate = Date(timeIntervalSince1970: reset)
-                                        if resetDate > context.date {
-                                            Text("Resets in \(resetDate, style: .relative)").font(.system(size: 11)).foregroundStyle(.secondary)
-                                        } else {
-                                            Text("Reset time reached · awaiting a reading").font(.system(size: 11)).foregroundStyle(.secondary)
-                                        }
-                                    }
-                                    Text("Read \(Date(timeIntervalSince1970: window.at / 1000), style: .relative) ago\(healthy(context.date) ? "" : " · Stale")")
-                                        .font(.system(size: 10)).foregroundStyle(.secondary)
-                                }
-                                .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-                                .background(accent.opacity(scheme == .dark ? 0.10 : 0.07), in: RoundedRectangle(cornerRadius: 12))
+                    VStack(alignment: .leading, spacing: 10) {
+                        HistoryView(model: model, accent: accent, selection: model.historySelection)
+                        Divider()
+                        if let window = model.window {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(window.title).font(.system(size: 11)).foregroundStyle(.secondary)
+                                Spacer()
+                                Text("\(window.remaining.formatted(.number.precision(.fractionLength(0...1))))% remaining").font(.system(size: 13, weight: .semibold))
                             }
-                        } else {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(model.unavailable ? "The background monitor isn’t reachable." : "Your first allowance reading will appear here.").font(.system(size: 13, weight: .medium))
-                                Text("Open the dashboard to check setup or connection details.").font(.system(size: 12)).foregroundStyle(.secondary)
-                            }.padding(.vertical, 12)
+                            if let reset = window.reset {
+                                let date = Date(timeIntervalSince1970: reset)
+                                Text(date > context.date ? "Resets \(date.formatted(date: .abbreviated, time: .shortened))" : "Reset time reached · awaiting a reading").font(.system(size: 10)).foregroundStyle(.secondary)
+                            }
                         }
-                        if model.unavailable {
-                            Text("Saved readings may be out of date. The panel reconnects automatically.").font(.system(size: 11)).foregroundStyle(.secondary)
-                            Button("Try connecting again") { Task { await model.update() } }.disabled(model.busy)
+                        HStack(spacing: 6) {
+                            Circle().fill(healthy(context.date) ? accent : Color.orange).frame(width: 6, height: 6)
+                            Text(model.headline(at: context.date)).font(.system(size: 11))
+                            Spacer()
+                            if let read = model.status?.latestRead { Text("Read \(read, style: .relative) ago").font(.system(size: 10)).foregroundStyle(.secondary) }
                         }
-                    }
+                    }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(accent.opacity(scheme == .dark ? 0.07 : 0.04), in: RoundedRectangle(cornerRadius: 12))
                 }.frame(maxHeight: .infinity)
-                Button(action: openDashboard) {
-                    HStack { Text("Open dashboard"); Spacer(); Image(systemName: "arrow.up.right") }.padding(.vertical, 5)
-                }.buttonStyle(.borderedProminent).tint(accent).foregroundStyle(scheme == .dark ? Color.black : Color.white)
-                HStack(alignment: .top) {
-                    Text("Monitoring continues when this panel closes.\nYour Mac must be awake.").font(.system(size: 10)).foregroundStyle(.secondary)
-                    Spacer()
+                HStack {
+                    Button(action: openDashboard) {
+                        HStack { Text("Open dashboard"); Spacer(); Image(systemName: "arrow.up.right") }.padding(.vertical, 5)
+                    }.buttonStyle(.borderedProminent).tint(accent).foregroundStyle(scheme == .dark ? Color.black : Color.white)
                     Menu {
+                        Text("Monitoring continues while your Mac is awake")
                         Button("Quit menu bar app", action: quit)
-                        Text("Background monitoring stays on")
                     } label: { Image(systemName: "ellipsis").frame(width: 22, height: 22) }
                     .menuStyle(.borderlessButton).fixedSize().help("Menu bar options")
                 }
-            }.padding(22).frame(width: 360, height: (model.status?.windows.count ?? 1) > 1 ? 600 : 450).background(Color(nsColor: .windowBackgroundColor))
+            }.padding(18).frame(maxWidth: .infinity, maxHeight: .infinity).background(Color(nsColor: .windowBackgroundColor))
         }
     }
     private func healthy(_ date: Date) -> Bool { !model.unavailable && model.status?.collector.enabled == true && model.status?.isFresh(at: date) == true }
 }
 
+final class HistoryPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override func cancelOperation(_ sender: Any?) { orderOut(nil) }
+}
+
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var item: NSStatusItem!
-    private let popover = NSPopover()
+    private let panel = HistoryPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+    private var outsideClick: Any?
+    private var localClick: Any?
     private var model: PanelModel!
     private var timer: Timer?
     private var lockFD: Int32 = -1
@@ -128,12 +113,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 button.setAccessibilityLabel("QuotaScope")
                 button.target = self; button.action = #selector(togglePanel)
             }
-            popover.behavior = .transient
-            popover.delegate = self
-            popover.contentViewController = NSHostingController(rootView: PanelView(model: model, openDashboard: { [weak self] in
+            panel.title = "QuotaScope history"
+            panel.isReleasedWhenClosed = false
+            panel.level = .popUpMenu
+            panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+            panel.hasShadow = true; panel.isOpaque = false; panel.backgroundColor = .clear
+            panel.delegate = self
+            let hosting = NSHostingView(rootView: PanelView(model: model, openDashboard: { [weak self] in
                 guard let self else { return }
                 if NSWorkspace.shared.open(self.model.dashboardURL) {
-                    self.popover.performClose(nil)
+                    self.panel.orderOut(nil)
                 } else {
                     let alert = NSAlert()
                     alert.messageText = "The dashboard couldn’t open"
@@ -141,23 +130,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                     alert.runModal()
                 }
             }, quit: { NSApp.terminate(nil) }))
-            // No account collection here. Read the lightweight status only while the panel is visible.
+            // The window owns sizing. Async SwiftUI content must never move it above the screen.
+            hosting.sizingOptions = []
+            hosting.wantsLayer = true; hosting.layer?.cornerRadius = 16; hosting.layer?.masksToBounds = true
+            panel.contentView = hosting
+            outsideClick = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in self?.panel.orderOut(nil) }
+            localClick = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+                if let self, event.window != self.panel, event.window != self.item.button?.window { self.panel.orderOut(nil) }
+                return event
+            }
+            NotificationCenter.default.addObserver(self, selector: #selector(screenChanged), name: NSApplication.didChangeScreenParametersNotification, object: nil)
+            // Status polls every 15s; bounded history at most once a minute while visible.
             timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
-                Task { @MainActor in guard let self, self.popover.isShown else { return }; await self.model.update() }
+                Task { @MainActor in guard let self, self.panel.isVisible else { return }; await self.model.update(); await self.model.updateHistory() }
             }
         } catch {
             let alert = NSAlert(); alert.messageText = "QuotaScope needs setup"; alert.informativeText = "The local connection settings could not be read. Reinstall the menu bar app from the QuotaScope project."; alert.runModal(); NSApp.terminate(nil)
         }
     }
-    @objc private func togglePanel() {
-        if popover.isShown { popover.performClose(nil); return }
-        guard let button = item.button else { return }
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        NSApp.activate(ignoringOtherApps: true)
-        Task { await model.update() }
+    @objc private func screenChanged() { if panel.isVisible { positionPanel() } }
+    private func positionPanel() {
+        guard let button = item.button, let window = button.window, let screen = window.screen else { return }
+        let anchor = window.convertToScreen(button.convert(button.bounds, to: nil))
+        panel.setFrame(panelFrame(anchor: anchor, visible: screen.visibleFrame), display: true)
     }
+    @objc private func togglePanel() {
+        if panel.isVisible { panel.orderOut(nil); return }
+        positionPanel()
+        panel.makeKeyAndOrderFront(nil)
+        Task { await model.update(); await model.updateHistory(force: true) }
+    }
+    func windowDidResignKey(_ notification: Notification) { panel.orderOut(nil) }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { togglePanel(); return false }
-    func applicationWillTerminate(_ notification: Notification) { timer?.invalidate(); if lockFD >= 0 { close(lockFD) } }
+    func applicationWillTerminate(_ notification: Notification) {
+        timer?.invalidate()
+        if let outsideClick { NSEvent.removeMonitor(outsideClick) }
+        if let localClick { NSEvent.removeMonitor(localClick) }
+        NotificationCenter.default.removeObserver(self)
+        if lockFD >= 0 { close(lockFD) }
+    }
 }
 @main
 struct QuotaScopeApplication {

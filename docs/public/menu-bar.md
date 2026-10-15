@@ -1,6 +1,6 @@
 # Menu bar app
 
-QuotaScope's native Mac app provides a small allowance panel without a persistent Dock icon. It uses the same collector and saved history as the browser dashboard. Closing the panel, closing the browser or choosing **Quit menu bar app** does not stop background monitoring. macOS must be awake and signed in; missing readings during sleep or shutdown remain gaps.
+QuotaScope's native Mac app provides a compact history panel without a persistent Dock icon. It uses the same collector and saved history as the browser dashboard. Closing the panel, closing the browser or choosing **Quit menu bar app** does not stop background monitoring. macOS must be awake and signed in; missing readings during sleep or shutdown remain gaps.
 
 ## Installation
 
@@ -18,9 +18,11 @@ Both login entries run after signing into the graphical macOS session, including
 
 ## Everyday use
 
-Click the gauge in the menu bar. The panel shows every returned allowance window, how much remains, reset times and the reading's freshness. **Refresh allowance** requests one account read; it does not enable a paused collector. **Open dashboard** opens the detailed local dashboard in your default browser. The panel follows the Mac's light/dark appearance.
+Click the gauge in the menu bar. **Activity** opens first, showing daily token history from local logs across observed accounts. Choose 7, 30 or 90 days and move over the graph to inspect a recorded value. Missing log activity is not included, and the current day is partial. **Allowance** shows remaining allowance over time, with account-read/local-log source selection and a window selector when multiple windows exist. Gaps, resets and continuity changes break the line; sampled server segments retain their continuity. The current balance, reset date and monitor health appear below the graph.
 
-The menu bar reads only the lightweight local status endpoint while its panel is visible. It never reads Codex credentials or imports logs. If disconnected, it preserves the last reading in memory, explicitly marks it stale, and retries while open. A closed/reopened app starts by fetching current status. The app reads the configured local port at launch; reinstall after moving the project or changing connection settings. Opening the app again through Applications reopens its panel; a process lock prevents duplicate menu bar instances.
+The panel is anchored below its menu bar icon and constrained to that display's usable area. It scrolls on small displays; graph loading and window changes cannot enlarge it offscreen. Click outside or press Escape to dismiss it. **Refresh allowance and history** requests one account read and reloads history; it does not enable a paused collector. **Open dashboard** opens the detailed local dashboard in your default browser. The panel follows the Mac's light/dark appearance.
+
+The menu bar polls lightweight local status every 15 seconds and requests the existing bounded dashboard history at most once a minute while visible. Opening the panel, changing range/window, retrying or manual refresh also loads history. It never reads Codex credentials or imports logs. If disconnected, it preserves the last reading in memory, explicitly marks it stale, and retries while open. A closed/reopened app starts by fetching current status. The app reads the configured local port at launch; reinstall after moving the project or changing connection settings. Opening the app again through Applications reopens its panel; a process lock prevents duplicate menu bar instances.
 
 **Quit menu bar app** hides the icon until you reopen it or sign in again. Monitoring continues. Use the dashboard's background-monitoring switch to pause collection. To remove the menu bar app and its login entry recoverably:
 
@@ -32,6 +34,6 @@ The collector, history and settings remain. To also remove the collector login e
 
 ## Verification and distribution limits
 
-`npm run test:macos` checks native decoding, remaining allowance, freshness, invalid ports, refresh token renewal, failure/recovery, overlapping requests and redirect refusal. `npm test` checks login plist behavior and recoverable bundle removal. `npm run menubar -- build` compiles and ad-hoc signs a bundle under `.local`, without installing it. macOS CI is configured for native tests and bundle builds.
+`npm run test:macos` checks native decoding, remaining allowance, freshness, invalid ports, refresh token renewal, failure/recovery, overlapping requests, redirect refusal, panel screen bounds, negative display coordinates, small displays, gap/reset segmentation, sampled continuity, calendar/DST ranges, history caching and out-of-order range responses. `npm test` checks login plist behavior and recoverable bundle removal. `npm run menubar -- build` compiles and ad-hoc signs a bundle under `.local`, without installing it. macOS CI is configured for native tests and bundle builds.
 
 The bundle targets macOS 13 or later and the build machine's architecture. Older macOS and Intel hardware require separate validation. A local ad-hoc signature is not Developer ID signing or notarization; do not describe this as a ready-to-download signed app. A real logout/login or reboot test is distinct from validating and loading the LaunchAgents. Public distribution and those physical-session checks remain separate release gates.

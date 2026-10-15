@@ -2,6 +2,7 @@ import Foundation
 import Combine
 
 struct Allowance: Decodable, Identifiable {
+    let account: String?
     let bucket: String
     let slot: String
     let used: Double
@@ -63,8 +64,24 @@ final class MonitorClient {
         let current = try await request(path: "/api/status")
         return refresh ? try await request(path: "/api/refresh", token: current.csrf) : current
     }
+    func history(days: Int, window: Allowance?) async throws -> HistoryResponse {
+        var url = URLComponents(url: base.appendingPathComponent("/api/state"), resolvingAgainstBaseURL: false)!
+        let key = try window.map { String(data: try JSONEncoder().encode([$0.bucket, $0.slot]), encoding: .utf8)! } ?? ""
+        url.queryItems = [URLQueryItem(name: "view", value: "activity"), URLQueryItem(name: "days", value: String(days)), URLQueryItem(name: "window", value: key), URLQueryItem(name: "timezone", value: TimeZone.current.identifier)]
+        let result: HistoryResponse = try await decodedRequest(url: url.url!)
+        guard result.version == 1, result.history.count <= 600, result.localHistory.count <= 600, result.usage.days.count <= 90 else { throw MonitorError.incompatible }
+        if let window {
+            guard result.latest?.id == window.id, result.latest?.account == window.account else { throw MonitorError.incompatible }
+        }
+        return result
+    }
     private func request(path: String, token: String? = nil) async throws -> Status {
-        var request = URLRequest(url: base.appendingPathComponent(path))
+        let status: Status = try await decodedRequest(url: base.appendingPathComponent(path), token: token)
+        guard status.version == 1, !status.csrf.isEmpty, Set(status.windows.map(\.id)).count == status.windows.count else { throw MonitorError.incompatible }
+        return status
+    }
+    private func decodedRequest<T: Decodable>(url: URL, token: String? = nil) async throws -> T {
+        var request = URLRequest(url: url)
         if let token {
             request.httpMethod = "POST"
             request.httpBody = Data("{}".utf8)
@@ -74,16 +91,29 @@ final class MonitorClient {
         }
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200, data.count < 2_000_000 else { throw MonitorError.response }
-        let status = try JSONDecoder().decode(Status.self, from: data)
-        guard status.version == 1, !status.csrf.isEmpty, Set(status.windows.map(\.id)).count == status.windows.count else { throw MonitorError.incompatible }
-        return status
+        return try JSONDecoder().decode(T.self, from: data)
     }
+}
+final class HistorySelection: ObservableObject {
+    @Published var mode = "Activity"
+    @Published var local = false
+    @Published var inspected: PlotPoint?
 }
 @MainActor
 final class PanelModel: ObservableObject {
     @Published private(set) var status: Status?
     @Published private(set) var busy = false
     @Published private(set) var unavailable = false
+    @Published private(set) var history: HistoryResponse?
+    @Published private(set) var historyBusy = false
+    @Published private(set) var historyUnavailable = false
+    let historySelection = HistorySelection()
+    @Published var days = 30
+    @Published var selectedWindow = ""
+    private var historyKey = ""
+    private var historyGeneration = 0
+    private var historyReadAt: Date?
+    var window: Allowance? { status?.windows.first(where: { $0.id == selectedWindow }) ?? status?.windows.first }
     private let client: MonitorClient
     var dashboardURL: URL { client.base }
     init(client: MonitorClient) { self.client = client }
@@ -91,8 +121,32 @@ final class PanelModel: ObservableObject {
         guard !busy else { return }
         busy = true
         defer { busy = false }
-        do { status = try await client.read(refresh: refresh); unavailable = false }
+        do {
+            let next = try await client.read(refresh: refresh)
+            if next.windows.first?.account != status?.windows.first?.account {
+                history = nil; historyReadAt = nil; historyGeneration += 1; historyBusy = false
+            }
+            status = next; unavailable = false
+        }
         catch { unavailable = true } // Keep the previous reading, explicitly marked stale.
+    }
+    func updateHistory(force: Bool = false) async {
+        let selected = window
+        let key = "\(days)/\(selected?.account ?? "")/\(selected?.id ?? "")/\(TimeZone.current.identifier)"
+        if !force && key == historyKey && (historyBusy || (historyReadAt.map { Date().timeIntervalSince($0) < 60 } ?? false)) { return }
+        if key != historyKey { history = nil }
+        historyKey = key; historyGeneration += 1
+        let generation = historyGeneration
+        historyBusy = true
+        do {
+            let result = try await client.history(days: days, window: selected)
+            guard generation == historyGeneration else { return }
+            history = result; historyUnavailable = false; historyReadAt = Date()
+        } catch {
+            guard generation == historyGeneration else { return }
+            historyUnavailable = true
+        }
+        historyBusy = false
     }
     func headline(at now: Date) -> String {
         if unavailable { return "Monitor unavailable" }
