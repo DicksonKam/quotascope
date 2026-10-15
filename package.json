@@ -1,0 +1,41 @@
+{
+  "name": "quotascope",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "node --import tsx server/index.ts",
+    "build": "tsc --noEmit && vite build --emptyOutDir false",
+    "start": "node --import tsx server/index.ts --production",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "check": "tsc --noEmit",
+    "probe": "node --import tsx server/probe.ts",
+    "test:integration": "node --import tsx tests/integration.server.ts",
+    "test:performance": "node --import tsx tests/performance.dashboard.ts",
+    "restore": "node --import tsx server/restore.ts",
+    "service": "node --import tsx server/service.ts",
+    "doctor": "node --import tsx server/doctor.ts",
+    "test:slow": "node --import tsx tests/slow-operations.ts",
+    "release:prepare": "node --import tsx scripts/prepare-release.ts",
+    "demo": "node --import tsx scripts/synthetic-demo.ts",
+    "format": "prettier --write src shared server tests scripts"
+  },
+  "dependencies": {
+    "lucide-react": "0.468.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "tsx": "4.20.6"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.30",
+    "@types/react": "19.2.0",
+    "@types/react-dom": "19.2.0",
+    "prettier": "3.6.2",
+    "typescript": "5.9.3",
+    "vite": "8.3.4"
+  },
+  "license": "MIT"
+}

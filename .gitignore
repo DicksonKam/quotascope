@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.local/
+*.sqlite*
+*.log
+test-results/
+.DS_Store
+.env*
+# Personal development evidence is deliberately outside the publication allowlist.
+docs/*
+!docs/public/
