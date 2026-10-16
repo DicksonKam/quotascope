@@ -504,7 +504,7 @@ export function App() {
                     <section className="card history-card">
                       <div className="card-heading">
                         <div>
-                          <h3>Remaining allowance over time</h3>
+                          <h3>Remaining allowance</h3>
                           <p>
                             {latest
                               ? windowLabel(latest)

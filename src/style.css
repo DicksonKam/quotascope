@@ -566,7 +566,7 @@ main {
 .card {
   padding: 22px 23px;
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: 12px;
   background: var(--surface);
 }
 .card p {
@@ -662,26 +662,32 @@ main {
   display: flex;
   padding: 3px;
   background: var(--bg);
-  border-radius: 5px;
+  border-radius: 8px;
   border: 1px solid var(--line);
 }
 .segmented button {
-  font-size: 10px;
-  padding: 5px 8px;
+  font-size: 11px;
+  min-height: 28px;
+  padding: 5px 10px;
   color: var(--muted);
-  border-radius: 3px;
+  border-radius: 5px;
+}
+.segmented button:hover {
+  color: var(--ink);
 }
 .segmented button.active {
-  background: var(--surface);
-  color: var(--ink);
+  background: var(--soft);
+  color: var(--accent);
 }
 select {
   color: var(--ink);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 5px;
-  padding: 6px;
-  font-size: 10px;
+  border-radius: 8px;
+  min-height: 36px;
+  max-width: 100%;
+  padding: 6px 10px;
+  font-size: 11px;
 }
 .chart {
   margin-top: 20px;

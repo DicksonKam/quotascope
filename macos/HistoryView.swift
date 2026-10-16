@@ -3,7 +3,8 @@ import Charts
 
 struct HistoryView: View {
     @ObservedObject var model: PanelModel
-    let accent: Color
+    let theme: PanelTheme
+    private var accent: Color { theme.accent }
     @ObservedObject var selection: HistorySelection
     private var local: Bool { selection.local }
     private var inspected: PlotPoint? { selection.inspected }
@@ -16,33 +17,33 @@ struct HistoryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Allowance over time").font(.system(size: 15, weight: .semibold))
+                Text("Remaining allowance").font(.system(size: 14, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 Picker("History range", selection: $model.days) {
                     Text("Current cycle").tag(0); Text("7 days").tag(7); Text("30 days").tag(30); Text("90 days").tag(90)
-                }.labelsHidden().fixedSize()
+                }.labelsHidden().controlSize(.small).fixedSize()
             }
             HStack {
                 if (model.status?.windows.count ?? 0) > 1 {
                     Picker("Allowance window", selection: Binding(get: { model.window?.id ?? "" }, set: { model.selectedWindow = $0 })) {
                         ForEach(model.status?.windows ?? []) { Text($0.title).tag($0.id) }
                     }.labelsHidden()
-                } else { Text(model.window?.title ?? "Allowance").font(.system(size: 11)).foregroundStyle(.secondary) }
+                } else { Text(model.window?.title ?? "Allowance").font(.system(size: 11)).foregroundStyle(theme.muted) }
                 Spacer()
                 Picker("History source", selection: $selection.local) {
                     Text("Account reads").tag(false); Text("Local logs").tag(true)
-                }.labelsHidden().fixedSize()
+                }.labelsHidden().controlSize(.small).fixedSize()
             }
             if model.days == 0, let cycle = model.history?.cycle {
                 Text(cycle.available ? "Inferred cycle start: \(Date(timeIntervalSince1970: (cycle.from ?? 0) / 1000).formatted(date: .abbreviated, time: .shortened))" : cycle.reason)
-                    .font(.system(size: 10)).foregroundStyle(.secondary)
+                    .font(.system(size: 10)).foregroundStyle(theme.muted)
             }
             Group {
                 if points.isEmpty {
                     VStack(spacing: 8) {
                         Image(systemName: "chart.xyaxis.line").font(.system(size: 26)).foregroundStyle(accent)
                         Text(model.historyBusy ? "Loading history…" : model.historyUnavailable ? "History couldn’t be loaded" : "No observations in this range").font(.system(size: 13, weight: .medium))
-                        Text("Recorded history appears here as monitoring continues.").font(.system(size: 11)).foregroundStyle(.secondary)
+                        Text("Recorded history appears here as monitoring continues.").font(.system(size: 11)).foregroundStyle(theme.muted)
                     }.frame(maxWidth: .infinity, minHeight: 190)
                 } else {
                     historyChart.frame(height: model.days == 0 ? 170 : 190)
@@ -52,18 +53,18 @@ struct HistoryView: View {
                 if let inspected {
                     Text("\(inspected.date.formatted(date: .abbreviated, time: .shortened)) · \(inspected.value.formatted(.number.precision(.fractionLength(0...1)))) \(unit)").font(.system(size: 11, weight: .medium)).monospacedDigit()
                 } else {
-                    Text("Move over the graph to inspect a recorded value.").font(.system(size: 11)).foregroundStyle(.secondary)
+                    Text("Move over the graph to inspect a recorded value.").font(.system(size: 11)).foregroundStyle(theme.muted)
                 }
                 Text("\(local ? "Local logs" : "Account reads") · gaps and resets break the line")
-                    .font(.system(size: 10)).foregroundStyle(.secondary)
+                    .font(.system(size: 10)).foregroundStyle(theme.muted)
                 if let history = model.history, local ? history.localHistoryTruncated : history.historyTruncated {
-                    Text("Showing the most recent sampled history in this range.").font(.system(size: 10)).foregroundStyle(.secondary)
+                    Text("Showing the most recent sampled history in this range.").font(.system(size: 10)).foregroundStyle(theme.muted)
                 }
                 if model.historyUnavailable {
-                    Text("History unavailable · saved graph may be out of date").font(.system(size: 11)).foregroundStyle(.orange)
+                    Text("History unavailable · saved graph may be out of date").font(.system(size: 11)).foregroundStyle(theme.warning)
                     Button("Retry history") { Task { await model.updateHistory(force: true) } }.disabled(model.historyBusy)
                 }
-            }.frame(minHeight: 46, alignment: .topLeading)
+            }.frame(minHeight: 40, alignment: .topLeading)
         }
         .onChange(of: local) { _ in selection.inspected = nil }
         .onChange(of: model.days) { _ in selection.inspected = nil; Task { await model.updateHistory(force: true) } }
@@ -82,10 +83,11 @@ struct HistoryView: View {
             }
         }
         .chartYScale(domain: 0...100)
+        .chartXScale(range: .plotDimension(padding: 20))
         .chartYAxis {
-            AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
-                AxisGridLine().foregroundStyle(Color.secondary.opacity(0.15))
-                AxisValueLabel { if let number = value.as(Double.self) { Text(number.formatted(.number.precision(.fractionLength(0)))).font(.system(size: 10)) } }
+            AxisMarks(position: .leading, values: [0, 25, 50, 75, 100]) { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.7, dash: [3, 4])).foregroundStyle(theme.line)
+                AxisValueLabel { if let number = value.as(Double.self) { Text(number.formatted(.number.precision(.fractionLength(0)))).font(.system(size: 10)).foregroundStyle(theme.muted) } }
             }
         }
         .chartXAxis {
@@ -93,12 +95,14 @@ struct HistoryView: View {
                 AxisValueLabel {
                     if let date = value.as(Date.self) {
                         let short = (points.last?.date.timeIntervalSince(points.first?.date ?? .now) ?? 0) < 172800
-                        Text(date.formatted(short ? .dateTime.hour().minute() : .dateTime.month(.abbreviated).day())).font(.system(size: 10))
+                        Text(date.formatted(short ? .dateTime.hour().minute() : .dateTime.month(.abbreviated).day())).font(.system(size: 10)).foregroundStyle(theme.muted)
                     }
                 }
             }
         }
-        .chartYAxisLabel("% remaining", position: .top, alignment: .leading)
+        .chartYAxisLabel(position: .top, alignment: .leading) {
+            Text("% remaining").font(.system(size: 10)).foregroundStyle(theme.muted)
+        }
         .chartOverlay { proxy in
             GeometryReader { geometry in
                 let inspect: (CGPoint) -> Void = { location in
