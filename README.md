@@ -4,7 +4,7 @@ A private, local allowance dashboard for Mac users with a signed-in Codex accoun
 
 QuotaScope reads the allowance windows returned by your installed Codex app-server. It does **not** monitor every ChatGPT model, tool, device or subscription feature. It is an independent project, not an OpenAI product.
 
-**Release status:** early release candidate. Automated local checks pass; physical login/sleep recovery, other Mac hardware and extended operation are still being verified. See [compatibility and verification scope](docs/public/compatibility.md).
+**Release status:** early release candidate. Automated local checks pass, and sleep/wake recovery has been observed on the development Mac. A real login cycle, other Mac hardware and extended operation are still being verified. See [compatibility and verification scope](docs/public/compatibility.md).
 
 ![Synthetic demonstration; no personal account data](docs/public/demo.png)
 
@@ -28,7 +28,7 @@ npm run menubar -- install
 npm run menubar -- status
 ```
 
-This builds a local `~/Applications/QuotaScope.app`, installs its login entry, and enables the background collector. Click the gauge near the Mac's clock for balances and reset times; **Open dashboard** opens the detailed interface. Both start after signing into macOS. Quitting the menu bar app leaves collection running. This source-built app is ad-hoc signed locally, not a notarized downloadable release. See the [menu bar guide](docs/public/menu-bar.md).
+This builds a local `~/Applications/QuotaScope.app`, installs its login entry, and enables the background collector. Click the gauge near the Mac's clock for remaining-allowance history, the current balance and reset time; **Open dashboard** opens the detailed interface. Both start after signing into macOS. Quitting the menu bar app leaves collection running. This source-built app is ad-hoc signed locally, not a notarized downloadable release. See the [menu bar guide](docs/public/menu-bar.md).
 
 For background monitoring with only the browser dashboard:
 

@@ -66,7 +66,7 @@ If Codex is missing, set its executable path. If sign-in is missing, sign in thr
 
 Solid strokes connect readings within a coherent window; dashed connectors indicate uncertainty. Reset changes, account changes and missing reads break continuity. The chart has a table alternative and keyboard observation inspection. Source and time-range controls affect history, not the current all-window balances.
 
-Current supported ranges are 7, 30 and 90 days, with up to 600 displayed points per source. Boundary-heavy charts may show only the most recent portion. Full raw history remains exportable. Activity shows 90 calendar days in the selected timezone while totals remain all-time. Rate estimates require enough recent direct readings and never predict an exhaustion time.
+Supported allowance ranges are Current cycle, 7, 30 and 90 days, with up to 600 displayed points per source. Current cycle requires valid inferred timing as described below. Boundary-heavy charts may show only the most recent portion. Full raw history remains exportable. Activity totals follow the selected activity period; the daily chart is capped at 90 calendar days in the selected timezone. Rate estimates require enough recent direct readings and never predict an exhaustion time.
 
 Datetime inputs use the selected timezone. Nonexistent or repeated daylight-saving wall times are rejected; select UTC to enter such an instant explicitly. Exports retain UTC plus a legacy, explicitly named Hong Kong rendering for schema compatibility.
 
