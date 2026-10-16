@@ -7,6 +7,7 @@ Status on 16 October 2026: **source release candidate; not a notarized app relea
 - Clean source installation and regression suites on Node 22.13.0, 22.23.3 and 24.22.0, including checkout paths with spaces.
 - Production-dependencies-only startup and both HTTP suites on Node 24.22.0 using synthetic accounts and restored fixture data.
 - Native model/history tests, app build and ad-hoc signature validation on Apple Silicon.
+- All four [GitHub Actions jobs](https://github.com/DicksonKam/quotascope/actions/runs/38906930137) passed for initial preview commit `fb97a84`: macOS/Linux with Node 22/24, including native tests and builds on macOS.
 - Publication allowlist and SHA-256 manifest; bounded scans of tracked source and Git history for credentials, private paths and data artifacts. The only path match was an intentional synthetic test fixture. The public demo contains synthetic balances, not personal account data. Pattern scans are not exhaustive secret detection.
 - npm dependency audit reported zero known vulnerabilities at the time of this check; this is not a guarantee against undisclosed vulnerabilities.
 - Current live collector health, enabled login entries, database integrity and existing backup integrity.
@@ -18,7 +19,6 @@ Status on 16 October 2026: **source release candidate; not a notarized app relea
 - **Fresh login:** after a normal logout/login or reboot/sign-in, confirm one menu icon, no persistent Dock icon, both services running, and a fresh successful account read. Do not mistake reopening the panel for this check.
 - **72-hour observation:** let the existing reliability check finish. Record successes, failures, gaps, integrity and backup health; do not interpret elapsed time as uninterrupted coverage.
 - **Compatibility:** Intel, older supported macOS, a fresh physical Mac, physical secondary displays and full-screen Spaces have not been exercised. Review the current native panel in dark appearance.
-- **Remote CI:** after an explicitly authorized GitHub push, require the configured macOS/Linux Node 22/24 workflow to pass. Local fixtures do not prove runner compatibility.
 - **Publication decision:** review these limitations before publishing. A clearly labeled source preview can disclose them; do not claim broad hardware validation or offer an unsigned bundle as a notarized release.
 
 ## Reproduce checks

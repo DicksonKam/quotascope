@@ -10,7 +10,7 @@ A separate Node 24.22.0 installation with only production dependencies and copie
 
 Node.js 22.13+ provides the SQLite API used here. `tsx` is a runtime dependency because both the server and child workers execute TypeScript. Development dependencies are needed to build the dashboard; production dependencies suffice to run its built assets.
 
-The GitHub Actions workflow is configured for Node 22 and 24 on macOS and Linux. Remote CI has not run; local results do not establish GitHub runner or Linux compatibility. Passing on the tested versions does not establish compatibility with every future Node or Codex CLI version.
+The initial preview commit `fb97a84` passed all four [GitHub Actions jobs](https://github.com/DicksonKam/quotascope/actions/runs/38906930137) on hosted macOS and Linux runners with Node 22 and 24. macOS jobs also passed native tests and the app build. Linux jobs verify the fixture-based server/dashboard suites, not the native Mac app or a real provider login. Passing on these runners does not establish compatibility with every Mac, future Node release or Codex CLI version.
 
 ## Monitoring and recovery
 
