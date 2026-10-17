@@ -1,5 +1,6 @@
 import Foundation
 import CoreGraphics
+import AppKit
 
 final class FixtureProtocol: URLProtocol, @unchecked Sendable {
     static var handler: (URLRequest) throws -> (Int, Data) = { _ in throw MonitorError.response }
@@ -64,6 +65,10 @@ func payload(version: Int = 1, used: Double = 27, ok: Bool = true, enabled: Bool
         precondition(label(failedStatus).title == "—" && label(pausedStatus).detail == "Monitoring paused")
         let emptyStatus = Status(version: 1, csrf: "token", windows: [], collector: freshStatus.collector, attempts: freshStatus.attempts)
         precondition(label(emptyStatus).title == "—")
+        for title in ["100%", "52%", "9%", "<1%", "0%", "—"] {
+            let image = MenuBarTypography.image(title: title)
+            precondition(image.isTemplate && image.size == NSSize(width: 36, height: 20))
+        }
         var paths: [String] = []
         FixtureProtocol.handler = { request in
             paths.append(request.url!.path)

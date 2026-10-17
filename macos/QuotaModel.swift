@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import AppKit
 
 struct Allowance: Decodable, Identifiable {
     let account: String?
@@ -76,6 +77,27 @@ struct MenuBarReading {
             title = "—"
             detail = "No allowance available"
         }
+    }
+}
+
+enum MenuBarTypography {
+    static func image(title: String) -> NSImage {
+        let text = NSMutableAttributedString(string: title, attributes: [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 14, weight: .regular),
+            .foregroundColor: NSColor.black,
+        ])
+        if title.hasSuffix("%") {
+            text.addAttribute(.font, value: NSFont.systemFont(ofSize: 10, weight: .regular), range: NSRange(location: (title as NSString).length - 1, length: 1))
+        }
+        // A template lets macOS choose contrast against the wallpaper and selected-menu background.
+        let size = NSSize(width: 36, height: 20)
+        let image = NSImage(size: size, flipped: false) { _ in
+            let measured = text.size()
+            text.draw(at: NSPoint(x: (size.width - measured.width) / 2, y: (size.height - measured.height) / 2))
+            return true
+        }
+        image.isTemplate = true
+        return image
     }
 }
 
