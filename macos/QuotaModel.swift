@@ -44,6 +44,41 @@ func monitorURL(port: Int) throws -> URL {
 }
 enum MonitorError: Error { case configuration, response, incompatible }
 
+struct MenuBarReading {
+    let title: String
+    let detail: String
+    var accessibilityLabel: String { "QuotaScope — \(detail)" }
+
+    init(status: Status?, window: Allowance?, unavailable: Bool, now: Date) {
+        var reason: String?
+        if unavailable { reason = "Monitor unavailable" }
+        else if status == nil { reason = "Connecting to monitor" }
+        else if status?.collector.enabled == false { reason = "Monitoring paused" }
+        else if window == nil { reason = "No allowance available" }
+        else if status?.isFresh(at: now) != true { reason = "Waiting for a fresh reading" }
+        else if let window {
+            let age = now.timeIntervalSince1970 - window.at / 1000
+            if !window.used.isFinite || !age.isFinite || age < -60 || age >= 180 {
+                reason = "Waiting for a fresh reading"
+            } else if let reset = window.reset, !reset.isFinite || reset <= now.timeIntervalSince1970 {
+                reason = "Reset time reached · awaiting a reading"
+            }
+        }
+        if let reason {
+            title = "—"
+            detail = reason
+        } else if let window {
+            // Match the panel's rounding; preserve a small nonzero allowance without displaying 0%.
+            let value = window.remaining
+            title = value > 0 && value < 1 ? "<1%" : "\(Int(value.rounded()))%"
+            detail = "\(window.title): \(title) remaining"
+        } else {
+            title = "—"
+            detail = "No allowance available"
+        }
+    }
+}
+
 // Never follow a localhost redirect with the in-memory request token.
 final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
@@ -117,6 +152,13 @@ final class PanelModel: ObservableObject {
     private let client: MonitorClient
     var dashboardURL: URL { client.base }
     init(client: MonitorClient) { self.client = client }
+    func menuBarReading(at now: Date = Date()) -> MenuBarReading {
+        MenuBarReading(status: status, window: window, unavailable: unavailable, now: now)
+    }
+    func poll(historyVisible: Bool) async {
+        await update()
+        if historyVisible { await updateHistory() }
+    }
     func update(refresh: Bool = false) async {
         guard !busy else { return }
         busy = true

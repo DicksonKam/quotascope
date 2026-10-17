@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import Darwin
+import Combine
 
 struct Gauge: Shape {
     func path(in rect: CGRect) -> Path {
@@ -119,6 +120,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var localClick: Any?
     private var model: PanelModel!
     private var timer: Timer?
+    private var statusChanges: AnyCancellable?
     private var lockFD: Int32 = -1
     func applicationDidFinishLaunching(_ notification: Notification) {
         do {
@@ -135,19 +137,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
             model = PanelModel(client: MonitorClient(base: try monitorURL(port: port)))
             NSApp.setActivationPolicy(.accessory)
-            item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+            // Reserve room for 100% so updates never shift neighboring menu items.
+            item = NSStatusBar.system.statusItem(withLength: 52)
             if let button = item.button {
-                let image = NSImage(size: NSSize(width: 20, height: 20), flipped: false) { rect in
-                    let path = NSBezierPath()
-                    path.appendArc(withCenter: NSPoint(x: 10, y: 10), radius: 7, startAngle: -45, endAngle: 225, clockwise: false)
-                    path.move(to: NSPoint(x: 10, y: 10)); path.line(to: NSPoint(x: 14, y: 14))
-                    path.lineWidth = 1.7; path.lineCapStyle = .round; NSColor.labelColor.setStroke(); path.stroke(); return true
-                }
-                image.isTemplate = true
-                button.image = image; button.toolTip = "QuotaScope — account allowance"
-                button.setAccessibilityLabel("QuotaScope")
+                button.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+                button.imagePosition = .noImage
                 button.target = self; button.action = #selector(togglePanel)
             }
+            updateMenuBar()
+            // Receive after @Published mutations, including refreshes and window selection in the panel.
+            statusChanges = model.objectWillChange.receive(on: RunLoop.main).sink { [weak self] _ in self?.updateMenuBar() }
             panel.title = "QuotaScope history"
             panel.isReleasedWhenClosed = false
             panel.level = .popUpMenu
@@ -175,13 +174,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 return event
             }
             NotificationCenter.default.addObserver(self, selector: #selector(screenChanged), name: NSApplication.didChangeScreenParametersNotification, object: nil)
-            // Status polls every 15s; bounded history at most once a minute while visible.
+            NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(woke), name: NSWorkspace.didWakeNotification, object: nil)
+            // Lightweight local status stays current with the panel closed. History is visible-only.
             timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
-                Task { @MainActor in guard let self, self.panel.isVisible else { return }; await self.model.update(); await self.model.updateHistory() }
+                Task { @MainActor in await self?.poll() }
             }
+            Task { await poll() }
         } catch {
             let alert = NSAlert(); alert.messageText = "QuotaScope needs setup"; alert.informativeText = "The local connection settings could not be read. Reinstall the menu bar app from the QuotaScope project."; alert.runModal(); NSApp.terminate(nil)
         }
+    }
+    private func updateMenuBar() {
+        guard let button = item?.button else { return }
+        let reading = model.menuBarReading()
+        button.title = reading.title
+        button.toolTip = "\(reading.accessibilityLabel)\nClick for allowance history"
+        button.setAccessibilityLabel(reading.accessibilityLabel)
+    }
+    private func poll() async {
+        updateMenuBar() // Expire an old reading even while a request is pending.
+        await model.poll(historyVisible: panel.isVisible)
+        updateMenuBar()
+    }
+    @objc private func woke() {
+        updateMenuBar()
+        Task { await poll() }
     }
     @objc private func screenChanged() { if panel.isVisible { positionPanel() } }
     private func positionPanel() {
@@ -199,9 +216,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { togglePanel(); return false }
     func applicationWillTerminate(_ notification: Notification) {
         timer?.invalidate()
+        statusChanges?.cancel()
         if let outsideClick { NSEvent.removeMonitor(outsideClick) }
         if let localClick { NSEvent.removeMonitor(localClick) }
         NotificationCenter.default.removeObserver(self)
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
         if lockFD >= 0 { close(lockFD) }
     }
 }
