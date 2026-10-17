@@ -65,10 +65,31 @@ func payload(version: Int = 1, used: Double = 27, ok: Bool = true, enabled: Bool
         precondition(label(failedStatus).title == "—" && label(pausedStatus).detail == "Monitoring paused")
         let emptyStatus = Status(version: 1, csrf: "token", windows: [], collector: freshStatus.collector, attempts: freshStatus.attempts)
         precondition(label(emptyStatus).title == "—")
-        for title in ["100%", "52%", "9%", "<1%", "0%", "—"] {
-            let image = MenuBarTypography.image(title: title)
-            precondition(image.isTemplate && image.size == NSSize(width: 36, height: 20))
+        for remaining in [0.0, 0.4, 9, 49, 50, 51, 100] {
+            let window = Allowance(account: nil, bucket: "codex", slot: "primary", used: 100 - remaining, duration: 10080, reset: nil, at: clock.timeIntervalSince1970 * 1000)
+            let reading = label(window: window)
+            precondition(abs(reading.remaining! - remaining) < 0.000001)
+            let image = MenuBarGauge.image(reading: reading)
+            precondition(image.isTemplate && image.size == NSSize(width: 60, height: 22))
         }
+        let left = MenuBarGauge.pointer(remaining: 0)!, middle = MenuBarGauge.pointer(remaining: 50)!, right = MenuBarGauge.pointer(remaining: 100)!
+        precondition(abs(left.end.x - 2) < 0.001 && abs(left.end.y - 3) < 0.001)
+        precondition(abs(middle.end.x - 30) < 0.001 && abs(middle.end.y - 21) < 0.001)
+        precondition(abs(right.end.x - 58) < 0.001 && abs(right.end.y - 3) < 0.001)
+        var previousX = -Double.infinity
+        for percent in 0...100 {
+            let needle = MenuBarGauge.pointer(remaining: Double(percent))!
+            precondition(needle.end.x >= previousX)
+            previousX = needle.end.x
+            for p in [needle.start, needle.end] {
+                precondition(p.x >= 0.825 && p.x <= 59.175 && p.y >= 0.825 && p.y <= 21.175)
+            }
+        }
+        for reading in [label(nil), label(unavailable: true), label(pausedStatus), label(failedStatus), label(window: expired)] {
+            precondition(reading.remaining == nil && MenuBarGauge.pointer(remaining: reading.remaining) == nil)
+            precondition(MenuBarGauge.image(reading: reading).isTemplate)
+        }
+        precondition(MenuBarGauge.pointer(remaining: .nan) == nil)
         var paths: [String] = []
         FixtureProtocol.handler = { request in
             paths.append(request.url!.path)

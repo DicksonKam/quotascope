@@ -45,8 +45,9 @@ func monitorURL(port: Int) throws -> URL {
 }
 enum MonitorError: Error { case configuration, response, incompatible }
 
-struct MenuBarReading {
+struct MenuBarReading: Equatable {
     let title: String
+    let remaining: Double?
     let detail: String
     var accessibilityLabel: String { "QuotaScope — \(detail)" }
 
@@ -67,33 +68,59 @@ struct MenuBarReading {
         }
         if let reason {
             title = "—"
+            remaining = nil
             detail = reason
         } else if let window {
             // Match the panel's rounding; preserve a small nonzero allowance without displaying 0%.
             let value = window.remaining
+            remaining = value
             title = value > 0 && value < 1 ? "<1%" : "\(Int(value.rounded()))%"
             detail = "\(window.title): \(title) remaining"
         } else {
             title = "—"
+            remaining = nil
             detail = "No allowance available"
         }
     }
 }
 
-enum MenuBarTypography {
-    static func image(title: String) -> NSImage {
-        let text = NSMutableAttributedString(string: title, attributes: [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 14, weight: .regular),
+enum MenuBarGauge {
+    static let size = NSSize(width: 60, height: 22)
+    static func pointer(remaining: Double?) -> (start: NSPoint, end: NSPoint)? {
+        guard let remaining, remaining.isFinite else { return nil }
+        let angle = Double.pi * (1 - min(100, max(0, remaining)) / 100)
+        let x = 30 + 22 * cos(angle), y = 3 + 12 * sin(angle)
+        // Follow the ellipse's outward normal so the pointer never enters the numerals.
+        let nx = cos(angle) / 22, ny = sin(angle) / 12
+        let length = hypot(nx, ny)
+        return (NSPoint(x: x + 2 * nx / length, y: y + 2 * ny / length),
+                NSPoint(x: x + 6 * nx / length, y: y + 6 * ny / length))
+    }
+    static func image(reading: MenuBarReading) -> NSImage {
+        let text = NSMutableAttributedString(string: reading.title, attributes: [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular),
             .foregroundColor: NSColor.black,
         ])
-        if title.hasSuffix("%") {
-            text.addAttribute(.font, value: NSFont.systemFont(ofSize: 10, weight: .regular), range: NSRange(location: (title as NSString).length - 1, length: 1))
+        if reading.title.hasSuffix("%") {
+            text.addAttribute(.font, value: NSFont.systemFont(ofSize: 8, weight: .regular), range: NSRange(location: (reading.title as NSString).length - 1, length: 1))
         }
-        // A template lets macOS choose contrast against the wallpaper and selected-menu background.
-        let size = NSSize(width: 36, height: 20)
+        let pointer = pointer(remaining: reading.remaining)
+        // Render at native resolution; macOS supplies contrast and selection colors.
         let image = NSImage(size: size, flipped: false) { _ in
-            let measured = text.size()
-            text.draw(at: NSPoint(x: (size.width - measured.width) / 2, y: (size.height - measured.height) / 2))
+            let arc = NSBezierPath()
+            arc.move(to: NSPoint(x: 8, y: 3))
+            arc.curve(to: NSPoint(x: 30, y: 15), controlPoint1: NSPoint(x: 8, y: 9.6274), controlPoint2: NSPoint(x: 17.8497, y: 15))
+            arc.curve(to: NSPoint(x: 52, y: 3), controlPoint1: NSPoint(x: 42.1503, y: 15), controlPoint2: NSPoint(x: 52, y: 9.6274))
+            arc.lineWidth = 1.05; arc.lineCapStyle = .round
+            NSColor.black.withAlphaComponent(pointer == nil ? 0.28 : 0.46).setStroke()
+            arc.stroke()
+            if let pointer {
+                let needle = NSBezierPath()
+                needle.move(to: pointer.start); needle.line(to: pointer.end)
+                needle.lineWidth = 1.65; needle.lineCapStyle = .round
+                NSColor.black.setStroke(); needle.stroke()
+            }
+            text.draw(at: NSPoint(x: (size.width - text.size().width) / 2, y: 0))
             return true
         }
         image.isTemplate = true

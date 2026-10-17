@@ -121,7 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var model: PanelModel!
     private var timer: Timer?
     private var statusChanges: AnyCancellable?
-    private var displayedTitle: String?
+    private var displayedReading: MenuBarReading?
     private var lockFD: Int32 = -1
     func applicationDidFinishLaunching(_ notification: Notification) {
         do {
@@ -139,7 +139,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             model = PanelModel(client: MonitorClient(base: try monitorURL(port: port)))
             NSApp.setActivationPolicy(.accessory)
             // Reserve room for 100% so updates never shift neighboring menu items.
-            item = NSStatusBar.system.statusItem(withLength: 44)
+            item = NSStatusBar.system.statusItem(withLength: 64)
             if let button = item.button {
                 button.imagePosition = .imageOnly
                 button.target = self; button.action = #selector(togglePanel)
@@ -187,9 +187,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func updateMenuBar() {
         guard let button = item?.button else { return }
         let reading = model.menuBarReading()
-        if displayedTitle != reading.title {
-            button.image = MenuBarTypography.image(title: reading.title)
-            displayedTitle = reading.title
+        if displayedReading != reading {
+            button.image = MenuBarGauge.image(reading: reading)
+            displayedReading = reading
         }
         button.toolTip = "\(reading.accessibilityLabel)\nClick for allowance history"
         button.setAccessibilityLabel(reading.accessibilityLabel)

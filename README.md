@@ -32,7 +32,7 @@ npm run menubar -- install
 npm run menubar -- status
 ```
 
-This builds a local `~/Applications/QuotaScope.app`, installs its login entry, and enables the background collector. The menu bar shows your remaining allowance as a percentage, updated even with the panel closed. Click it for allowance history, the current balance and reset time; **Open dashboard** opens the detailed interface. Both start after signing into macOS. Quitting the menu bar app leaves collection running. This source-built app is ad-hoc signed locally, not a notarized downloadable release. See the [menu bar guide](docs/public/menu-bar.md).
+This builds a local `~/Applications/QuotaScope.app`, installs its login entry, and enables the background collector. The menu bar shows your remaining percentage inside an arc with an outward pointer (empty on the left, full on the right), updated even with the panel closed. Click it for allowance history, the current balance and reset time; **Open dashboard** opens the detailed interface. Both start after signing into macOS. Quitting the menu bar app leaves collection running. This source-built app is ad-hoc signed locally, not a notarized downloadable release. See the [menu bar guide](docs/public/menu-bar.md).
 
 For background monitoring with only the browser dashboard:
 
