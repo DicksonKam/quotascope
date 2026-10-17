@@ -25,8 +25,8 @@ export function appInfo() {
 <key>CFBundleDisplayName</key><string>QuotaScope</string>
 <key>CFBundleExecutable</key><string>QuotaScope</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.1.3</string>
-<key>CFBundleVersion</key><string>4</string>
+<key>CFBundleShortVersionString</key><string>0.1.4</string>
+<key>CFBundleVersion</key><string>5</string>
 <key>CFBundleIconFile</key><string>QuotaScope</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>

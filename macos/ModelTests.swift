@@ -70,19 +70,19 @@ func payload(version: Int = 1, used: Double = 27, ok: Bool = true, enabled: Bool
             let reading = label(window: window)
             precondition(abs(reading.remaining! - remaining) < 0.000001)
             let image = MenuBarGauge.image(reading: reading)
-            precondition(image.isTemplate && image.size == NSSize(width: 22, height: 22))
+            precondition(image.isTemplate && image.size == NSSize(width: 26, height: 22))
         }
         let left = MenuBarGauge.pointer(remaining: 0)!, middle = MenuBarGauge.pointer(remaining: 50)!, right = MenuBarGauge.pointer(remaining: 100)!
-        precondition(abs(left.end.x - 0.8) < 0.001 && abs(left.end.y - 11) < 0.001)
-        precondition(abs(middle.end.x - 11) < 0.001 && abs(middle.end.y - 18.2) < 0.001)
-        precondition(abs(right.end.x - 21.2) < 0.001 && abs(right.end.y - 11) < 0.001)
+        precondition(abs(left.end.x - 0.8) < 0.001 && abs(left.end.y - 12) < 0.001)
+        precondition(abs(middle.end.x - 13) < 0.001 && abs(middle.end.y - 18.7) < 0.001)
+        precondition(abs(right.end.x - 25.2) < 0.001 && abs(right.end.y - 12) < 0.001)
         var previousX = -Double.infinity
         for percent in 0...100 {
             let needle = MenuBarGauge.pointer(remaining: Double(percent))!
             precondition(needle.end.x >= previousX)
             previousX = needle.end.x
             for p in [needle.start, needle.end] {
-                precondition(p.x >= 0.65 && p.x <= 21.35 && p.y >= 0.65 && p.y <= 21.35)
+                precondition(p.x >= 0.65 && p.x <= 25.35 && p.y >= 0.65 && p.y <= 21.35)
             }
         }
         for reading in [label(nil), label(unavailable: true), label(pausedStatus), label(failedStatus), label(window: expired)] {

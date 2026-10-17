@@ -138,8 +138,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
             model = PanelModel(client: MonitorClient(base: try monitorURL(port: port)))
             NSApp.setActivationPolicy(.accessory)
-            // Match the width of standard macOS menu-bar icons.
-            item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+            // Keep a compact icon-sized slot, with room for the arc to overhang the digits.
+            item = NSStatusBar.system.statusItem(withLength: max(NSStatusBar.system.thickness, 26))
             if let button = item.button {
                 button.imagePosition = .imageOnly
                 button.target = self; button.action = #selector(togglePanel)

@@ -85,19 +85,19 @@ struct MenuBarReading: Equatable {
 }
 
 enum MenuBarGauge {
-    static let size = NSSize(width: 22, height: 22)
+    static let size = NSSize(width: 26, height: 22)
     static func pointer(remaining: Double?) -> (start: NSPoint, end: NSPoint)? {
         guard let remaining, remaining.isFinite else { return nil }
         let angle = Double.pi * (1 - min(100, max(0, remaining)) / 100)
-        let x = 11 + 8 * cos(angle), y = 11 + 5 * sin(angle)
+        let x = 13 + 10 * cos(angle), y = 12 + 4.5 * sin(angle)
         // Follow the ellipse's outward normal so the pointer never enters the numerals.
-        let nx = cos(angle) / 8, ny = sin(angle) / 5
+        let nx = cos(angle) / 10, ny = sin(angle) / 4.5
         let length = hypot(nx, ny)
         return (NSPoint(x: x + 0.6 * nx / length, y: y + 0.6 * ny / length),
                 NSPoint(x: x + 2.2 * nx / length, y: y + 2.2 * ny / length))
     }
     static func image(reading: MenuBarReading) -> NSImage {
-        // Stack the arc above the exact percentage to fit a standard square menu-bar slot.
+        // Give the arc a little overhang and separation above the percentage.
         let digits = reading.title.replacingOccurrences(of: "%", with: "")
         let text = NSMutableAttributedString(string: reading.title, attributes: [
             .font: NSFont.monospacedDigitSystemFont(ofSize: digits.count >= 3 ? 8 : 9.5, weight: .medium),
@@ -110,10 +110,10 @@ enum MenuBarGauge {
         // Render at native resolution; macOS supplies contrast and selection colors.
         let image = NSImage(size: size, flipped: false) { _ in
             let arc = NSBezierPath()
-            arc.move(to: NSPoint(x: 3, y: 11))
-            arc.curve(to: NSPoint(x: 11, y: 16), controlPoint1: NSPoint(x: 3, y: 13.7614), controlPoint2: NSPoint(x: 6.5817, y: 16))
-            arc.curve(to: NSPoint(x: 19, y: 11), controlPoint1: NSPoint(x: 15.4183, y: 16), controlPoint2: NSPoint(x: 19, y: 13.7614))
-            arc.lineWidth = 1; arc.lineCapStyle = .round
+            arc.move(to: NSPoint(x: 3, y: 12))
+            arc.curve(to: NSPoint(x: 13, y: 16.5), controlPoint1: NSPoint(x: 3, y: 14.4853), controlPoint2: NSPoint(x: 7.4772, y: 16.5))
+            arc.curve(to: NSPoint(x: 23, y: 12), controlPoint1: NSPoint(x: 18.5228, y: 16.5), controlPoint2: NSPoint(x: 23, y: 14.4853))
+            arc.lineWidth = 0.95; arc.lineCapStyle = .round
             NSColor.black.withAlphaComponent(pointer == nil ? 0.28 : 0.75).setStroke()
             arc.stroke()
             if let pointer {
