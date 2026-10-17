@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { Store } from "../server/store.ts";
 import { scan } from "../server/scanner.ts";
-import { parseRecord, type Context } from "../server/parser.ts";
+import { parseRecord, usage as parseUsage, type Context } from "../server/parser.ts";
 import { accountObservations } from "../server/account.ts";
 import {
   burnRate,
@@ -332,9 +332,12 @@ test("CSV formula prefixes and quotation marks remain inert", () => {
   assert.equal(csvCell('a"b'), '"a""b"');
   assert.equal(csvCell("@cmd"), '"\'@cmd"');
 });
+function interval(t: number, reset = 2000000000): Observation[] {
+  return Array.from({ length: 11 }, (_, i) => obs(t + i * 60000, 5 + i, reset));
+}
 test("comparison refuses unconfirmed coverage and unknown settings", () => {
   const t = Date.now(),
-    os = [obs(t - 600000, 5), obs(t, 15)];
+    os = interval(t - 600000);
   assert.equal(comparisons(os, [], []).status, "Insufficient evidence");
   assert.ok(
     Object.keys(comparisons(os, [], []).rejected).some((s) =>
@@ -342,7 +345,7 @@ test("comparison refuses unconfirmed coverage and unknown settings", () => {
     ),
   );
 });
-test("matched cohorts need three independent windows per plan; mixed models cannot establish factors", () => {
+function comparisonFixture() {
   const os: Observation[] = [],
     es: TokenEvent[] = [],
     notes: Annotation[] = [];
@@ -350,10 +353,7 @@ test("matched cohorts need three independent windows per plan; mixed models cann
   for (let p = 0; p < 2; p++)
     for (let i = 0; i < 3; i++) {
       const t = start + (p * 4 + i) * 86400000;
-      os.push(
-        obs(t, 5, Math.round(t / 1000 + 60000)),
-        obs(t + 600000, 15, Math.round(t / 1000 + 60000)),
-      );
+      os.push(...interval(t, Math.round(t / 1000 + 60000)));
       es.push({
         ...ctx(),
         key: `${p}:${i}`,
@@ -388,6 +388,10 @@ test("matched cohorts need three independent windows per plan; mixed models cann
         },
       );
     }
+  return { os, es, notes };
+}
+test("matched cohorts need three independent windows per plan; mixed models cannot establish factors", () => {
+  const { os, es, notes } = comparisonFixture();
   const r = comparisons(os, es, notes);
   assert.equal(r.pairs.length, 1);
   assert.equal(
@@ -524,7 +528,7 @@ test("separated intervals with the same jittered reset remain one independent wi
     ];
   for (let i = 0; i < 3; i++) {
     const t = start + i * 7 * 3600000;
-    os.push(obs(t, 5, 2000000000 + i), obs(t + 600000, 15, 2000000000 + i));
+    os.push(...interval(t, 2000000000 + i));
     es.push({
       ...ctx(),
       key: String(i),
@@ -554,4 +558,104 @@ test("missing identifier salt refuses to create a second identity for existing d
     readFileSync(join(dir, "quotascope.sqlite"), "utf8"),
     "existing",
   );
+});
+
+
+test("comparisons never pool accounts, allowance slots, durations or provider plan periods", () => {
+  const { os, es, notes } = comparisonFixture();
+  const boundary = notes[6].at;
+  for (const change of [{ account: "another-account" }, { slot: "secondary" as const }, { duration: 300 }, { bucket: "other" }]) {
+    const modified = os.map(o => o.at >= boundary ? { ...o, ...change } : o);
+    const events = es.map(e => e.at >= boundary && change.account ? { ...e, account: change.account } : e);
+    const annotations = notes.map(a => a.at >= boundary && change.account ? { ...a, account: change.account } : a);
+    assert.equal(comparisons(modified, events, annotations).pairs.length, 0);
+  }
+  // A provider plan change splits a user-labelled period instead of pooling its windows.
+  const changedPlan = os.map(o => o.at >= notes[4].at && o.at < boundary ? { ...o, plan: "different-plan" } : o);
+  assert.equal(comparisons(changedPlan, es, notes).pairs.length, 0);
+});
+
+test("comparisons reject gaps, expired/unknown windows, noted resets and zero movement", () => {
+  const { os, es, notes } = comparisonFixture();
+  const start = os[0].at;
+  const cases = [
+    os.filter(o => (o.at - start) % 86400000 === 0 || (o.at - start) % 86400000 === 600000),
+    os.map(o => ({ ...o, reset: null })),
+    os.map(o => ({ ...o, duration: null })),
+    os.map(o => ({ ...o, reset: Math.floor(o.at / 1000) - 1 })),
+    os.map(o => ({ ...o, used: 5 })),
+    os.map(o => ({ ...o, used: 5 + (o.used - 5) / 10 })),
+  ];
+  for (const observations of cases) assert.equal(comparisons(observations, es, notes).pairs.length, 0);
+  assert.equal(comparisons(os, es.map(e => ({ ...e, input: 0, cached: 0, output: 0, reasoning: 0, total: 0 })), notes).pairs.length, 0);
+  const resets: Annotation[] = notes.filter(a => a.kind === "plan").map(a => ({ ...a, kind: "reset", at: a.at + 300000, end: null, verified: false, label: "Possible manual redemption" }));
+  assert.equal(comparisons(os, es, [...notes, ...resets]).pairs.length, 0);
+  assert.equal(comparisons(os, es, notes).pairs[0].ratio, 2);
+  assert.match(comparisons(os, es, notes).caveat, /rollout timing are not verified/);
+});
+
+test("cache changes remain recorded without implying quota savings or adding nested tokens", () => {
+  const s = new Store(join(temp(), "cache.sqlite"));
+  const missingWrite = { ...usage } as Partial<typeof usage>;
+  delete missingWrite.cache_write_input_tokens;
+  assert.equal(parseUsage(missingWrite)?.cacheWrite, null);
+  for (const field of ["cached_input_tokens", "reasoning_output_tokens"] as const) {
+    const missing = { ...usage } as Partial<typeof usage>;
+    delete missing[field];
+    assert.equal(parseUsage(missing), null); // Incomplete records are excluded, not assumed zero.
+  }
+  parseRecord(record("shared", missingWrite as typeof usage), ctx(), s, hash, "parent", 0);
+  parseRecord(record("shared", { ...usage, cache_write_input_tokens: 50 }), ctx(), s, hash, "child", 0);
+  assert.equal(s.events().length, 1);
+  assert.equal(s.events()[0].cacheWrite, 50);
+  assert.ok(s.events()[0].flags.includes("cache-write-semantics-unverified"));
+  assert.equal(summarize(s.events()).total, 0); // Enrichment cannot bypass quarantine.
+  parseRecord(record("new", { ...usage, cached_input_tokens: 900 }), ctx(), s, hash, "child", 1);
+  assert.equal(summarize(s.events()).total, 1100);
+  assert.equal(summarize(s.events()).cached, 900);
+  s.close();
+});
+
+test("unknown reset transitions and future observations do not support a pace", () => {
+  const now = Date.now();
+  const os = interval(now - 600000);
+  assert.equal(reconstruct(os.map((o, i) => i < 5 ? { ...o, reset: null } : o)).length, 2);
+  assert.equal(burnRate(interval(now + 120000), now).value, null);
+});
+
+
+test("comparison ordering is chronological and interleaved plan cohorts are not before/after", () => {
+  const { os, es, notes } = comparisonFixture();
+  const backwards = comparisons([...os].reverse(), [...es].reverse(), [...notes].reverse());
+  assert.equal(backwards.pairs[0].before, "plan-0");
+  assert.equal(backwards.pairs[0].after, "plan-1");
+  const interleaved = notes.map((a, i) => ({ ...a, label: a.kind === "plan" ? `plan-${Math.floor(i / 2) % 2}` : a.label }));
+  assert.equal(comparisons(os, es, interleaved).pairs.length, 0);
+});
+
+test("legacy deltas preserve missing cache-write metadata and survive replay without conflicts", () => {
+  const s = new Store(join(temp(), "unknown-cache.sqlite"));
+  const missing = { ...usage } as Partial<typeof usage>;
+  delete missing.cache_write_input_tokens;
+  const record = { type: "event_msg", timestamp: "2026-10-15T12:00:00Z", payload: { type: "token_count", info: { total_token_usage: missing, last_token_usage: missing } } };
+  parseRecord(record, ctx(), s, hash, "legacy", 0);
+  parseRecord(record, ctx(), s, hash, "legacy", 0);
+  assert.equal(s.events().length, 1);
+  assert.equal(s.events()[0].cacheWrite, null);
+  assert.equal(summarize(s.events()).fallbackTokens, 1100);
+  assert.equal(summarize(s.events()).total, 0);
+  assert.ok(!s.events()[0].flags.includes("response-id-conflict"));
+  // Pre-update imports stored unreported cache writes as zero in their identity key.
+  const oldRecord = { ...record, payload: { ...record.payload, info: { total_token_usage: usage, last_token_usage: usage } } };
+  parseRecord(oldRecord, ctx(), s, hash, "legacy", 0);
+  assert.equal(s.events().length, 1);
+  assert.equal(s.events()[0].cacheWrite, 0);
+  assert.equal(summarize(s.events()).fallbackTokens, 1100);
+  const older = new Store(join(temp(), "older-cache.sqlite"));
+  parseRecord(oldRecord, ctx(), older, hash, "legacy", 0);
+  parseRecord(record, ctx(), older, hash, "legacy", 0);
+  assert.equal(older.events().length, 1);
+  assert.equal(summarize(older.events()).fallbackTokens, 1100);
+  older.close();
+  s.close();
 });

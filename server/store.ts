@@ -80,12 +80,14 @@ export class Store {
     const row = this.db.prepare('SELECT data FROM events WHERE key=?').get(e.key) as any;
     if (row) {
       const previous: TokenEvent = JSON.parse(row.data);
-      if (['input','cached','cacheWrite','output','reasoning','total'].some(k=>(previous as any)[k] !== (e as any)[k])) {
+      if (['input','cached','output','reasoning','total'].some(k=>(previous as any)[k] !== (e as any)[k]) || previous.cacheWrite != null && e.cacheWrite != null && previous.cacheWrite !== e.cacheWrite) {
         previous.flags = [...new Set([...previous.flags, 'response-id-conflict'])];
         this.db.prepare('UPDATE events SET data=? WHERE key=?').run(JSON.stringify(previous),e.key);
         this.issue(e.key,'response-id-conflict');
-      } else if (previous.turnStart == null && e.turnStart != null) {
-        previous.turnStart=e.turnStart;
+      } else if (previous.turnStart == null && e.turnStart != null || previous.cacheWrite == null && e.cacheWrite != null) {
+        previous.turnStart ??= e.turnStart;
+        previous.cacheWrite ??= e.cacheWrite;
+        previous.flags = [...new Set([...previous.flags, ...e.flags])];
         this.db.prepare('UPDATE events SET data=? WHERE key=?').run(JSON.stringify(previous),e.key);
       }
       return;

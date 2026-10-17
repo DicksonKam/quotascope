@@ -870,6 +870,9 @@ footer span:first-child {
   gap: 20px;
   padding: 14px 0 27px;
 }
+.metric-strip + .subtle-note {
+  margin: 0 0 20px;
+}
 .metric-strip span {
   display: block;
   color: var(--muted);

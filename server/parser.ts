@@ -7,9 +7,11 @@ export interface Context {
 }
 export function usage(v: any): Usage | null {
   if (!v || typeof v !== 'object') return null;
-  const values = ['input_tokens', 'cached_input_tokens', 'cache_write_input_tokens', 'output_tokens', 'reasoning_output_tokens', 'total_tokens'].map(k => numeric(v[k] ?? (k === 'cache_write_input_tokens' ? 0 : undefined)));
+  const values = ['input_tokens', 'cached_input_tokens', 'output_tokens', 'reasoning_output_tokens', 'total_tokens'].map(k => numeric(v[k]));
   if (values.some(n => n === null || n < 0 || !Number.isSafeInteger(n))) return null;
-  const [input, cached, cacheWrite, output, reasoning, total] = values as number[];
+  const [input, cached, output, reasoning, total] = values as number[];
+  const cacheWrite = v.cache_write_input_tokens == null ? null : numeric(v.cache_write_input_tokens);
+  if (v.cache_write_input_tokens != null && (cacheWrite === null || cacheWrite < 0 || !Number.isSafeInteger(cacheWrite))) return null;
   return { input, cached, cacheWrite, output, reasoning, total };
 }
 export function usageFlags(u: Usage) {
@@ -52,12 +54,14 @@ export function parseRecord(d: any, ctx: Context, store: Store, hash: (v: unknow
       usageFlags(total).forEach(issue);
       if (ctx.previous && JSON.stringify(total) === JSON.stringify(ctx.previous)) issue('repeated-cumulative');
       if (ctx.previous && total.total < ctx.previous.total) issue('counter-discontinuity');
+      // Normalize only the legacy identity key to retain pre-null replay identity.
+      // The stored counter remains null when unreported.
       // Keep marked deltas for legacy-only threads. Never add them to response records.
       const last = usage(v.info?.last_token_usage);
       const baseline = ctx.previous ?? (last && last.total===total.total && !ctx.parent ? {input:0,cached:0,cacheWrite:0,output:0,reasoning:0,total:0} : null);
       if (baseline && Number.isFinite(at) && total.total > baseline.total) {
-        const delta = Object.fromEntries(Object.keys(total).map(k=>[k,(total as any)[k]-(baseline as any)[k]])) as unknown as Usage;
-        if (Object.values(delta).every(n=>n>=0)) store.event({...delta,key:hash([ctx.account,ctx.thread,'cumulative',JSON.stringify(total)].join(':')),account:ctx.account,device:ctx.device,thread:ctx.thread,session:ctx.session,at,model:ctx.model,effort:ctx.effort,speed:ctx.speed,kind:'fallback',flags:['cumulative-estimate',...usageFlags(delta)]});
+        const delta = Object.fromEntries(Object.keys(total).map(k=>[k,(total as any)[k] == null || (baseline as any)[k] == null ? null : (total as any)[k]-(baseline as any)[k]])) as unknown as Usage;
+        if (Object.values(delta).every(n=>n===null||n>=0)) store.event({...delta,key:hash([ctx.account,ctx.thread,'cumulative',JSON.stringify({...total,cacheWrite:total.cacheWrite??0})].join(':')),account:ctx.account,device:ctx.device,thread:ctx.thread,session:ctx.session,at,model:ctx.model,effort:ctx.effort,speed:ctx.speed,kind:'fallback',flags:['cumulative-estimate',...usageFlags(delta)]});
       } else if (!baseline) issue('unresolved-inherited-baseline');
       ctx.previous = total;
     }

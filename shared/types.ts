@@ -26,7 +26,7 @@ export interface AccountSnapshot {
 export interface Usage {
   input: number;
   cached: number;
-  cacheWrite: number;
+  cacheWrite: number | null;
   output: number;
   reasoning: number;
   total: number;
@@ -60,6 +60,7 @@ export interface Attempt {
   message: string;
 }
 export interface Segment {
+  duration: number | null;
   account: string;
   bucket: string;
   slot: string;

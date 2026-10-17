@@ -709,6 +709,13 @@ export function App() {
                         <strong>{compact(usage.reasoning)}</strong>
                       </div>
                     </div>
+                    <p className="subtle-note">
+                      Cached input is included in input tokens; reasoning is
+                      included in output. These local counts are not allowance
+                      charges. Better caching can change how far an allowance
+                      lasts without changing the token total. Records missing
+                      required token counters are excluded, not treated as zero.
+                    </p>
                     <section className="card">
                       <div className="card-heading">
                         <div>
@@ -1118,9 +1125,10 @@ export function App() {
                     <span className="overline">ALLOWANCE RESEARCH</span>
                     <h2>{data.comparison.status}</h2>
                     <p>
-                      Does a plan change give you more actual capacity? Compare
-                      the same model, reasoning effort, speed setting, and cache
-                      mix across verified plan periods.
+                      Explore local tokens per observed allowance point across
+                      plan periods for the same account and allowance window.
+                      This does not measure productive work or prove savings
+                      from a provider update.
                     </p>
                     <div className="criteria">
                       <span>
@@ -1156,9 +1164,11 @@ export function App() {
                       <h3>What makes an interval eligible?</h3>
                       <p>
                         At least five percentage points over five minutes,
-                        direct account reads, one known model/settings
-                        combination, a verified plan period, and user-confirmed
-                        coverage. Metering lag and integer rounding still apply.
+                        direct account reads no more than two minutes apart,
+                        one known model/settings combination, a verified plan
+                        period, and user-confirmed coverage. Resets and changes
+                        in window length break the comparison. Metering lag and
+                        percentage rounding still apply.
                       </p>
                       {Object.entries(data.comparison.rejected).map(
                         ([reason, count]) => (

@@ -40,7 +40,7 @@ test("streamed JSON/CSV preserve export values, provenance, quoting, timezone an
     speed: "standard",
     input: 100,
     cached: 20,
-    cacheWrite: 0,
+    cacheWrite: null,
     output: 10,
     reasoning: 2,
     total: 110,
@@ -109,7 +109,7 @@ test("streamed JSON/CSV preserve export values, provenance, quoting, timezone an
     );
     assert.equal(
       csv.split("\r\n")[4],
-      '"response","1","synthetic","thread","","","2026-01-02T03:04:05.000Z","02/01/2026, 11:04:05","","","","","local","local-response-metadata","test","medium","standard","100","20","0","10","2","110","coverage-incomplete"',
+      '"response","1","synthetic","thread","","","2026-01-02T03:04:05.000Z","02/01/2026, 11:04:05","","","","","local","local-response-metadata","test","medium","standard","100","20","","10","2","110","coverage-incomplete"',
     );
     // Force multiple buffered writes and a concurrent commit between exported tables.
     store.db.exec("BEGIN");

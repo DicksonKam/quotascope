@@ -79,3 +79,16 @@ The inferred start is the provider's reported next reset minus the reported wind
 Model shares describe recorded input plus output tokens, not quota charges. Current-window tokens are scoped by response completion timestamp and account. Known turns that began before the boundary and cumulative fallback estimates are excluded; unknown turn starts use completion time. Missing devices/logs and unverified system activity prevent interpreting these as a complete account ledger. Multiple allowance buckets do not establish token-to-bucket attribution.
 
 The **Allowance history** range selector on Overview and the menu bar also offers **Current cycle**, using the same inferred start. Existing 7/30/90-day ranges remain available. Gaps and resets remain visible; no artificial 100% starting point is inserted. Earlier-cycle browsing is not included.
+
+
+### Provider efficiency changes
+
+QuotaScope reads remaining allowance from the provider's account snapshot. It does not convert tokens into quota, apply an assumed efficiency multiplier, or change earlier measurements after a product announcement. A counter drop is a boundary with an unknown cause; it is not proof of a provider-wide reset or policy change. A scheduled cycle start remains an inference.
+
+Local token counts describe recorded model activity, not billable charges or completed work. Cached input is a subset of input, and reasoning is a subset of output. Response IDs deduplicate shared/forked records; cumulative estimates are excluded when response records exist. Missing required counters exclude that record. New imports preserve an unreported cache-write count as null; older exports may contain zero for an unreported count, so historical zero is not evidence that no writes occurred. Nonzero cache writes remain excluded from reconciled totals until their semantics are established. No server-side cache lifetime, routing, or cross-agent cache-sharing inference is made.
+
+Comparisons require the same account, allowance bucket, slot and window duration, with matching model, effort, speed and cache band. Each cohort separates provider plan codes as well as user plan labels. Direct readings must be no more than two minutes apart; unknown/expired windows and user-noted reset or plan boundaries cannot support a comparison. Three distinct reset windows per cohort are still required. Only chronologically separated plan cohorts are paired. Zero or small rounded movements do not imply free work or an infinite efficiency gain.
+
+These are descriptive local-token/account-quota ratios. Work on other devices, cloud tasks and Work may be missing. Workload difficulty, promotions and account-specific rollout timing are not verified; matching cache bands can also hide improvements that act through increased cache reuse. Therefore a ratio cannot establish that a paid plan now delivers more comparable productive work. An announcement date is not an account reset or an effective rollout boundary, and QuotaScope does not insert one automatically.
+
+The [official prompt-caching guide](https://developers.openai.com/api/docs/guides/prompt-caching) describes API cache behavior, not a conversion to ChatGPT subscription allowance. Reviewed 18 October 2026; that documentation does not establish an account-specific rollout date or numerical gain for the reported Codex/Work efficiency update.
