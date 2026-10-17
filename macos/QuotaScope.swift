@@ -138,8 +138,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
             model = PanelModel(client: MonitorClient(base: try monitorURL(port: port)))
             NSApp.setActivationPolicy(.accessory)
-            // Reserve room for 100% so updates never shift neighboring menu items.
-            item = NSStatusBar.system.statusItem(withLength: 64)
+            // Match the width of standard macOS menu-bar icons.
+            item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
             if let button = item.button {
                 button.imagePosition = .imageOnly
                 button.target = self; button.action = #selector(togglePanel)

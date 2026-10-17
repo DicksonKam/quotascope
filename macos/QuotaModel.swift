@@ -85,39 +85,41 @@ struct MenuBarReading: Equatable {
 }
 
 enum MenuBarGauge {
-    static let size = NSSize(width: 60, height: 22)
+    static let size = NSSize(width: 22, height: 22)
     static func pointer(remaining: Double?) -> (start: NSPoint, end: NSPoint)? {
         guard let remaining, remaining.isFinite else { return nil }
         let angle = Double.pi * (1 - min(100, max(0, remaining)) / 100)
-        let x = 30 + 22 * cos(angle), y = 3 + 12 * sin(angle)
+        let x = 11 + 8 * cos(angle), y = 11 + 5 * sin(angle)
         // Follow the ellipse's outward normal so the pointer never enters the numerals.
-        let nx = cos(angle) / 22, ny = sin(angle) / 12
+        let nx = cos(angle) / 8, ny = sin(angle) / 5
         let length = hypot(nx, ny)
-        return (NSPoint(x: x + 2 * nx / length, y: y + 2 * ny / length),
-                NSPoint(x: x + 6 * nx / length, y: y + 6 * ny / length))
+        return (NSPoint(x: x + 0.6 * nx / length, y: y + 0.6 * ny / length),
+                NSPoint(x: x + 2.2 * nx / length, y: y + 2.2 * ny / length))
     }
     static func image(reading: MenuBarReading) -> NSImage {
+        // Stack the arc above the exact percentage to fit a standard square menu-bar slot.
+        let digits = reading.title.replacingOccurrences(of: "%", with: "")
         let text = NSMutableAttributedString(string: reading.title, attributes: [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular),
+            .font: NSFont.monospacedDigitSystemFont(ofSize: digits.count >= 3 ? 8 : 9.5, weight: .medium),
             .foregroundColor: NSColor.black,
         ])
         if reading.title.hasSuffix("%") {
-            text.addAttribute(.font, value: NSFont.systemFont(ofSize: 8, weight: .regular), range: NSRange(location: (reading.title as NSString).length - 1, length: 1))
+            text.addAttribute(.font, value: NSFont.systemFont(ofSize: 6.5, weight: .medium), range: NSRange(location: (reading.title as NSString).length - 1, length: 1))
         }
         let pointer = pointer(remaining: reading.remaining)
         // Render at native resolution; macOS supplies contrast and selection colors.
         let image = NSImage(size: size, flipped: false) { _ in
             let arc = NSBezierPath()
-            arc.move(to: NSPoint(x: 8, y: 3))
-            arc.curve(to: NSPoint(x: 30, y: 15), controlPoint1: NSPoint(x: 8, y: 9.6274), controlPoint2: NSPoint(x: 17.8497, y: 15))
-            arc.curve(to: NSPoint(x: 52, y: 3), controlPoint1: NSPoint(x: 42.1503, y: 15), controlPoint2: NSPoint(x: 52, y: 9.6274))
-            arc.lineWidth = 1.05; arc.lineCapStyle = .round
-            NSColor.black.withAlphaComponent(pointer == nil ? 0.28 : 0.46).setStroke()
+            arc.move(to: NSPoint(x: 3, y: 11))
+            arc.curve(to: NSPoint(x: 11, y: 16), controlPoint1: NSPoint(x: 3, y: 13.7614), controlPoint2: NSPoint(x: 6.5817, y: 16))
+            arc.curve(to: NSPoint(x: 19, y: 11), controlPoint1: NSPoint(x: 15.4183, y: 16), controlPoint2: NSPoint(x: 19, y: 13.7614))
+            arc.lineWidth = 1; arc.lineCapStyle = .round
+            NSColor.black.withAlphaComponent(pointer == nil ? 0.28 : 0.75).setStroke()
             arc.stroke()
             if let pointer {
                 let needle = NSBezierPath()
                 needle.move(to: pointer.start); needle.line(to: pointer.end)
-                needle.lineWidth = 1.65; needle.lineCapStyle = .round
+                needle.lineWidth = 1.3; needle.lineCapStyle = .round
                 NSColor.black.setStroke(); needle.stroke()
             }
             text.draw(at: NSPoint(x: (size.width - text.size().width) / 2, y: 0))
