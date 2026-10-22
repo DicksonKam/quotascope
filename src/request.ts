@@ -35,8 +35,16 @@ export async function performAction(
 export class DashboardRequests {
   private generation = 0;
   private action = false;
-  beginRead(): number | null {
-    return this.action ? null : ++this.generation;
+  private activeRead: { key: string; generation: number } | null = null;
+  beginRead(key?: string): number | null {
+    if (this.action || (key !== undefined && this.activeRead?.key === key))
+      return null;
+    const generation = ++this.generation;
+    this.activeRead = key === undefined ? null : { key, generation };
+    return generation;
+  }
+  endRead(generation: number): void {
+    if (this.activeRead?.generation === generation) this.activeRead = null;
   }
   isCurrent(generation: number): boolean {
     return generation === this.generation && !this.action;
@@ -44,6 +52,7 @@ export class DashboardRequests {
   beginAction(): boolean {
     if (this.action) return false;
     this.action = true;
+    this.activeRead = null;
     ++this.generation;
     return true;
   }

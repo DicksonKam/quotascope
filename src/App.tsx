@@ -77,8 +77,6 @@ export function App() {
   }, [dark]);
   const requests = useRef(new DashboardRequests());
   async function load() {
-    const sequence = requests.current.beginRead();
-    if (sequence === null) return;
     const params = new URLSearchParams({
       view: page.toLowerCase(),
       activityScope,
@@ -87,6 +85,9 @@ export function App() {
       window: selectedWindow,
       timezone,
     });
+    // A repeated timer/focus poll must not invalidate a still-running identical read.
+    const sequence = requests.current.beginRead(params.toString());
+    if (sequence === null) return;
     try {
       const result = await requestDashboard(params.toString());
       if (requests.current.isCurrent(sequence)) {
@@ -109,6 +110,8 @@ export function App() {
           "Cannot load the dashboard. Showing the last loaded observations.",
         );
       }
+    } finally {
+      requests.current.endRead(sequence);
     }
   }
   const loadRef = useRef(load);
@@ -180,7 +183,7 @@ export function App() {
   useEffect(() => {
     if (!runningRequest) return;
     const timer = setInterval(() => {
-      void loadRef.current();
+      if (!document.hidden) void loadRef.current();
     }, 2000);
     return () => clearInterval(timer);
   }, [runningRequest]);
@@ -1164,8 +1167,8 @@ export function App() {
                       <h3>What makes an interval eligible?</h3>
                       <p>
                         At least five percentage points over five minutes,
-                        direct account reads no more than two minutes apart,
-                        one known model/settings combination, a verified plan
+                        direct account reads no more than two minutes apart, one
+                        known model/settings combination, a verified plan
                         period, and user-confirmed coverage. Resets and changes
                         in window length break the comparison. Metering lag and
                         percentage rounding still apply.

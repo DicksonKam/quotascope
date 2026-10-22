@@ -153,6 +153,22 @@ test("mounted dashboard applies control responses before delayed reads, rejects 
     await mount();
     assert.equal(checkbox().checked, true);
     holdReads = true;
+    server.windows[0].used = 87;
+    await act(async () => {
+      for (let i = 0; i < 3; i++)
+        dom.window.dispatchEvent(new dom.window.Event("focus"));
+    });
+    assert.equal(
+      pending.length,
+      1,
+      "repeat focus/poll requests share the pending read",
+    );
+    await act(async () => pending.shift()!());
+    assert.match(
+      text(),
+      /13%/,
+      "a slow response still renders despite intervening polls",
+    );
     await act(async () => {
       dom.window.dispatchEvent(new dom.window.Event("focus"));
     });

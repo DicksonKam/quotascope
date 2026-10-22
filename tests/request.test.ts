@@ -65,3 +65,26 @@ test("old reads cannot undo pause/resume, including reads attempted while the ac
   assert.equal(requests.isCurrent(current), false);
   assert.equal(requests.isCurrent(newer), true);
 });
+
+test("slow dashboard reads survive repeated polls while query changes and actions supersede them", () => {
+  const requests = new DashboardRequests();
+  const slow = requests.beginRead("overview")!;
+  for (let i = 0; i < 4; i++)
+    assert.equal(requests.beginRead("overview"), null);
+  assert.equal(requests.isCurrent(slow), true); // Delayed status fallback can finally render.
+  const changed = requests.beginRead("activity")!;
+  assert.equal(requests.isCurrent(slow), false);
+  requests.endRead(slow);
+  assert.equal(requests.beginRead("activity"), null); // Old completion cannot unlock a newer read.
+  requests.endRead(changed); // Success or failure releases the next retry.
+  const retry = requests.beginRead("activity")!;
+  assert.equal(typeof retry, "number");
+  requests.beginAction();
+  assert.equal(requests.isCurrent(retry), false);
+  requests.endAction();
+  const afterAction = requests.beginRead("activity")!;
+  assert.equal(typeof afterAction, "number");
+  requests.endRead(retry);
+  assert.equal(requests.isCurrent(afterAction), true);
+  assert.equal(requests.beginRead("activity"), null);
+});
