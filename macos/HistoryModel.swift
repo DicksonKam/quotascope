@@ -48,3 +48,20 @@ func allowancePlot(_ points: [HistoryPoint], local: Bool) -> [PlotPoint] {
         return PlotPoint(id: index, date: Date(timeIntervalSince1970: point.at / 1000), value: point.remaining, segment: segment)
     }
 }
+
+func unitCount(_ value: Int, _ unit: String) -> String { "\(value) \(unit)\(value == 1 ? "" : "s")" }
+/// Two largest units, in words, from a reference clock, so the text never jitters or truncates.
+func remaining(until date: Date, at now: Date) -> String {
+    let seconds = max(0, Int(date.timeIntervalSince(now)))
+    let days = seconds / 86400, hours = seconds % 86400 / 3600, minutes = seconds % 3600 / 60
+    if days > 0 { return hours > 0 ? "\(unitCount(days, "day")) \(unitCount(hours, "hour"))" : unitCount(days, "day") }
+    if hours > 0 { return minutes > 0 ? "\(unitCount(hours, "hour")) \(unitCount(minutes, "minute"))" : unitCount(hours, "hour") }
+    return minutes > 0 ? unitCount(minutes, "minute") : "under a minute"
+}
+func elapsed(since date: Date, at now: Date) -> String {
+    let seconds = max(0, Int(now.timeIntervalSince(date)))
+    if seconds < 60 { return "\(seconds) sec" }
+    if seconds < 3600 { return "\(seconds / 60) min" }
+    if seconds < 86400 { return unitCount(seconds / 3600, "hour") }
+    return unitCount(seconds / 86400, "day")
+}

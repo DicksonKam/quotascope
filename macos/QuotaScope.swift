@@ -37,7 +37,7 @@ struct DashboardButtonStyle: ButtonStyle {
     let theme: PanelTheme
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 12, weight: .semibold))
+            .font(.system(size: 13, weight: .semibold))
             .padding(.horizontal, 12).frame(minHeight: 36)
             .foregroundStyle(theme.dark ? theme.background : Color.white)
             .background(theme.accent.opacity(configuration.isPressed ? 0.8 : 1), in: RoundedRectangle(cornerRadius: 8))
@@ -53,43 +53,14 @@ struct PanelView: View {
     private var accent: Color { theme.accent }
     var body: some View {
         TimelineView(.periodic(from: .now, by: 15)) { context in
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 10) {
-                    Gauge().stroke(accent, style: StrokeStyle(lineWidth: 2, lineCap: .round)).frame(width: 23, height: 23)
-                        .frame(width: 34, height: 34).background(theme.soft, in: RoundedRectangle(cornerRadius: 9))
-                    Text("QuotaScope").font(.system(size: 18, weight: .semibold))
-                    Spacer()
-                    if model.busy || model.historyBusy { ProgressView().controlSize(.small) }
-                    Button(action: { Task { await model.update(refresh: true); await model.updateHistory(force: true) } }) {
-                        Image(systemName: "arrow.clockwise").foregroundStyle(theme.muted).frame(width: 32, height: 32)
-                            .background(theme.surface, in: RoundedRectangle(cornerRadius: 8))
-                            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.line))
-                    }.buttonStyle(.borderless).disabled(model.busy).help("Refresh allowance and history").accessibilityLabel("Refresh allowance and history")
-                }
+            VStack(alignment: .leading, spacing: 12) {
+                header
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HistoryView(model: model, theme: theme, selection: model.historySelection)
-                        Rectangle().fill(theme.line).frame(height: 1)
-                        if let window = model.window {
-                            HStack(alignment: .firstTextBaseline) {
-                                Text(window.title).font(.system(size: 11)).foregroundStyle(theme.muted)
-                                Spacer()
-                                Text("\(window.remaining.formatted(.number.precision(.fractionLength(0...1))))% remaining").font(.system(size: 13, weight: .semibold))
-                            }
-                            if let reset = window.reset {
-                                let date = Date(timeIntervalSince1970: reset)
-                                Text(date > context.date ? "Resets \(date.formatted(date: .abbreviated, time: .shortened))" : "Reset time reached · awaiting a reading").font(.system(size: 11)).foregroundStyle(theme.muted)
-                            }
-                        }
-                        HStack(spacing: 6) {
-                            Circle().fill(healthy(context.date) ? accent : theme.warning).frame(width: 6, height: 6)
-                            Text(model.headline(at: context.date)).font(.system(size: 11))
-                            Spacer()
-                            if let read = model.status?.latestRead { Text("Read \(read, style: .relative) ago").font(.system(size: 11)).foregroundStyle(theme.muted) }
-                        }
-                    }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
-                        .background(theme.surface, in: RoundedRectangle(cornerRadius: 12))
-                        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(theme.line))
+                    VStack(alignment: .leading, spacing: 12) {
+                        // The current reading leads; history supports it below.
+                        card { allowance(at: context.date) }
+                        card { HistoryView(model: model, theme: theme, selection: model.historySelection) }
+                    }
                 }.frame(maxHeight: .infinity)
                 HStack {
                     Button(action: openDashboard) {
@@ -102,6 +73,70 @@ struct PanelView: View {
                     .menuStyle(.borderlessButton).fixedSize().help("Menu bar options")
                 }
             }.padding(18).frame(maxWidth: .infinity, maxHeight: .infinity).foregroundStyle(theme.ink).tint(accent).background(theme.background)
+        }
+    }
+    private var header: some View {
+        HStack(spacing: 8) {
+            Gauge().stroke(accent, style: StrokeStyle(lineWidth: 1.8, lineCap: .round)).frame(width: 18, height: 18)
+                .frame(width: 26, height: 26).background(theme.soft, in: RoundedRectangle(cornerRadius: 7))
+            Text("QuotaScope").font(.system(size: 13, weight: .semibold))
+            Spacer()
+            if model.busy || model.historyBusy { ProgressView().controlSize(.small) }
+            Button(action: { Task { await model.update(refresh: true); await model.updateHistory(force: true) } }) {
+                Image(systemName: "arrow.clockwise").font(.system(size: 12, weight: .medium)).foregroundStyle(theme.muted).frame(width: 28, height: 28)
+                    .background(theme.surface, in: RoundedRectangle(cornerRadius: 7))
+                    .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(theme.line))
+            }.buttonStyle(.borderless).disabled(model.busy).help("Refresh allowance and history").accessibilityLabel("Refresh allowance and history")
+        }
+    }
+    private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        content().padding(14).frame(maxWidth: .infinity, alignment: .leading)
+            .background(theme.surface, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(theme.line))
+    }
+    private func allowance(at now: Date) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                if (model.status?.windows.count ?? 0) > 1 {
+                    Picker("Allowance window", selection: Binding(get: { model.window?.id ?? "" }, set: { model.selectedWindow = $0 })) {
+                        ForEach(model.status?.windows ?? []) { Text($0.title).tag($0.id) }
+                    }.labelsHidden().controlSize(.small).fixedSize()
+                } else {
+                    Text(model.window?.title ?? "Allowance").font(.system(size: 13, weight: .medium))
+                }
+                Spacer()
+                if let read = model.status?.latestRead {
+                    Text("Read \(elapsed(since: read, at: now)) ago").font(.system(size: 11)).foregroundStyle(theme.muted).monospacedDigit()
+                }
+            }
+            if let window = model.window {
+                HStack(alignment: .center, spacing: 6) {
+                    Text("\(window.remaining.formatted(.number.precision(.fractionLength(0...1))))%")
+                        .font(.system(size: 34, weight: .semibold)).monospacedDigit().accessibilityLabel("\(window.remaining.formatted(.number.precision(.fractionLength(0...1)))) percent remaining")
+                    Text("remaining").font(.system(size: 13)).foregroundStyle(theme.muted)
+                    Spacer(minLength: 12)
+                    if let reset = window.reset {
+                        let date = Date(timeIntervalSince1970: reset)
+                        VStack(alignment: .trailing, spacing: 3) {
+                            if date > now {
+                                // Formatted from the timeline clock: auto-updating date text reserves its widest width and truncates here.
+                                Text("Resets in \(remaining(until: date, at: now))").font(.system(size: 13, weight: .medium)).monospacedDigit()
+                                Text(date.formatted(date: .abbreviated, time: .shortened)).font(.system(size: 11)).foregroundStyle(theme.muted)
+                            } else {
+                                Text("Reset time reached").font(.system(size: 13, weight: .medium))
+                                Text("Awaiting a reading").font(.system(size: 11)).foregroundStyle(theme.muted)
+                            }
+                        }.multilineTextAlignment(.trailing)
+                    }
+                }
+            } else {
+                Text(model.status == nil ? "Connecting to monitor…" : "No allowance available").font(.system(size: 13))
+            }
+            HStack(spacing: 7) {
+                Circle().fill(healthy(now) ? accent : theme.warning).frame(width: 7, height: 7)
+                Text(model.headline(at: now)).font(.system(size: 12))
+                Spacer()
+            }
         }
     }
     private func healthy(_ date: Date) -> Bool { !model.unavailable && model.status?.collector.enabled == true && model.status?.isFresh(at: date) == true }
@@ -227,6 +262,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if lockFD >= 0 { close(lockFD) }
     }
 }
+#if !QUOTASCOPE_SNAPSHOT
 @main
 struct QuotaScopeApplication {
     @MainActor static func main() {
@@ -236,3 +272,4 @@ struct QuotaScopeApplication {
         withExtendedLifetime(delegate) { app.run() }
     }
 }
+#endif

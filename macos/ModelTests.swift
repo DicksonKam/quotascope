@@ -211,6 +211,18 @@ func payload(version: Int = 1, used: Double = 27, ok: Bool = true, enabled: Bool
         model.days = 0
         await model.updateHistory(force: true)
         precondition(model.history?.cycle?.available == false && model.history?.cycle?.reason == "Await a fresh reading")
+        // Panel countdown and read-age text come from the timeline clock, in words, without truncation.
+        let tick = Date(timeIntervalSince1970: 1_700_000_000)
+        precondition(remaining(until: tick.addingTimeInterval(4 * 86400 + 15 * 3600 + 59), at: tick) == "4 days 15 hours")
+        precondition(remaining(until: tick.addingTimeInterval(86400), at: tick) == "1 day")
+        precondition(remaining(until: tick.addingTimeInterval(3600 + 60), at: tick) == "1 hour 1 minute")
+        precondition(remaining(until: tick.addingTimeInterval(12 * 60), at: tick) == "12 minutes")
+        precondition(remaining(until: tick.addingTimeInterval(20), at: tick) == "under a minute")
+        precondition(remaining(until: tick.addingTimeInterval(-50), at: tick) == "under a minute")
+        precondition(elapsed(since: tick.addingTimeInterval(-18), at: tick) == "18 sec")
+        precondition(elapsed(since: tick.addingTimeInterval(-61), at: tick) == "1 min")
+        precondition(elapsed(since: tick.addingTimeInterval(-7200), at: tick) == "2 hours")
+        precondition(elapsed(since: tick.addingTimeInterval(-3 * 86400), at: tick) == "3 days")
         print("Passed history checks: screen bounds, negative display origins, small screens, gap/reset segmentation, remaining percentages, bounded history queries, caching and failure recovery.")
         print("Passed native model checks: decoding, percentages, freshness, configuration, CSRF refresh sequence, failures, recovery, single-flight and redirect refusal.")
         print("Passed menu bar checks: current percentages, zero/full/tiny allowance, stale/paused/missing/expired readings, accessibility, multiple windows and closed-panel polling without history requests.")

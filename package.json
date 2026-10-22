@@ -23,7 +23,8 @@
     "demo": "node --import tsx scripts/synthetic-demo.ts",
     "format": "prettier --write src shared server tests scripts",
     "menubar": "node --import tsx server/menu-bar.ts",
-    "test:macos": "node --import tsx scripts/test-macos.ts"
+    "test:macos": "node --import tsx scripts/test-macos.ts",
+    "snapshot:menubar": "node --import tsx scripts/snapshot-menu-bar.ts"
   },
   "dependencies": {
     "lucide-react": "0.468.0",
