@@ -42,6 +42,8 @@ test("fresh configuration is stable across checkout moves and retains explicit r
   assert.ok(xml.includes("<key>PORT</key><string>5123</string>"));
   assert.ok(xml.includes(restored.dataDir));
   assert.ok(xml.includes("/node path/node"));
+  // A Background-class agent and its reader/account children are starved first on a busy Mac.
+  assert.ok(xml.includes("<key>ProcessType</key><string>Standard</string>"));
   const explicit = configuration(
     "/moved checkout",
     { QUOTASCOPE_DATA_DIR: "/recovery override", PORT: "5124" },
