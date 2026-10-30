@@ -5,6 +5,20 @@ import { numeric, label } from "./privacy.ts";
 import type { AccountSnapshot, Observation } from "../shared/types.ts";
 import { sortWindows, windowKey } from "../shared/allowance.ts";
 
+/**
+ * A failed account read. Transient failures can clear without the user doing anything: the network is not back
+ * after a wake or a move between networks, the helper was slow, or its connection dropped. Codex reports an
+ * unreachable backend as unavailable usage, so that reply is transient too. A missing CLI or a malformed reply
+ * is not, and keeps the collector's longer backoff.
+ */
+export class AccountReadError extends Error {
+  constructor(
+    message: string,
+    readonly transient: boolean,
+  ) {
+    super(message);
+  }
+}
 export function readAccount(
   timeoutMs = 20000,
   executable = process.env.QUOTASCOPE_CODEX ?? "codex",
@@ -34,22 +48,27 @@ export function readAccount(
     const timer = setTimeout(
       () =>
         end(
-          new Error("Account read timed out. Local history remains available."),
+          new AccountReadError(
+            "Account read timed out. Local history remains available.",
+            true,
+          ),
         ),
       timeoutMs,
     );
     child.on("error", () =>
       end(
-        new Error(
+        new AccountReadError(
           "Codex CLI is unavailable. Set QUOTASCOPE_CODEX to its executable path.",
+          false,
         ),
       ),
     );
     child.on("exit", () => {
       if (!finished)
         end(
-          new Error(
+          new AccountReadError(
             "Account connection closed. Check that Codex is signed in.",
+            true,
           ),
         );
     });
@@ -57,11 +76,16 @@ export function readAccount(
       if (!child.stdin.destroyed) child.stdin.write(JSON.stringify(obj) + "\n");
     };
     child.stdin.on("error", () =>
-      end(new Error("Account connection unavailable.")),
+      end(new AccountReadError("Account connection unavailable.", true)),
     );
     lines.on("line", (line) => {
       if (line.length > 2_000_000)
-        return end(new Error("Account response exceeded the supported size."));
+        return end(
+          new AccountReadError(
+            "Account response exceeded the supported size.",
+            false,
+          ),
+        );
       let msg: any;
       try {
         msg = JSON.parse(line);
@@ -69,14 +93,18 @@ export function readAccount(
         return;
       }
       if (msg.id === 1) {
-        if (msg.error) return end(new Error("Account initialization failed."));
+        if (msg.error)
+          return end(
+            new AccountReadError("Account initialization failed.", false),
+          );
         send({ method: "initialized" });
         send({ id: 2, method: "account/rateLimits/read" });
       } else if (msg.id === 2) {
         if (msg.error)
           return end(
-            new Error(
-              "Account usage is unavailable. Sign in through Codex; QuotaScope does not change authentication.",
+            new AccountReadError(
+              "Account usage is unavailable. If this persists, sign in through Codex; QuotaScope does not change authentication.",
+              true,
             ),
           );
         end(undefined, msg.result);

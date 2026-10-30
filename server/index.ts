@@ -8,7 +8,7 @@ import { mkdirSync, readFileSync, existsSync, chmodSync } from "node:fs";
 import { resolve, join, extname } from "node:path";
 import { Store } from "./store.ts";
 import { identityFactory, numeric, label } from "./privacy.ts";
-import { readAccount, accountSnapshot } from "./account.ts";
+import { readAccount, accountSnapshot, AccountReadError } from "./account.ts";
 import { DashboardReader, type DashboardQuery } from "./dashboard-reader.ts";
 import { ImportJob } from "./import-job.ts";
 import { ExportJob } from "./export-job.ts";
@@ -17,7 +17,8 @@ import type {
   Annotation,
   Observation,
 } from "../shared/types.ts";
-import { Collector } from "./collector.ts";
+import { Collector, type CollectResult } from "./collector.ts";
+import { watchForWake } from "./wake.ts";
 import { Operation, type OperationState } from "./operation.ts";
 import { validTimezone } from "../shared/time.ts";
 import type { DashboardStatus } from "../shared/api.ts";
@@ -30,9 +31,9 @@ const hash = identityFactory(dir),
   store = new Store(join(dir, "quotascope.sqlite"));
 chmodSync(store.path, 0o600);
 const csrf = randomBytes(32).toString("hex");
-let refreshing: Promise<boolean> | null = null;
+let refreshing: Promise<CollectResult> | null = null;
 let status = { scanning: false, refreshing: false };
-async function refresh() {
+async function refresh(): Promise<CollectResult> {
   if (refreshing) return refreshing;
   refreshing = (async () => {
     status.refreshing = true;
@@ -45,7 +46,8 @@ async function refresh() {
       return true;
     } catch (e) {
       store.accountReadFailed((e as Error).message);
-      return false;
+      // Network-shaped failures retry next minute; anything else keeps the longer backoff.
+      return e instanceof AccountReadError && e.transient ? "transient" : false;
     } finally {
       status.refreshing = false;
     }
@@ -414,11 +416,14 @@ const server = createServer(async (req, res) => {
     else res.end();
   }
 });
+// After sleep, read now rather than waiting out a retry delay that was frozen while asleep.
+let stopWakeWatch = () => {};
 server.listen(port, "127.0.0.1", () => {
   console.log(`QuotaScope ready at http://127.0.0.1:${port}`);
   void collector.cycle();
   void importer.cycle();
   void backupScheduler.cycle();
+  stopWakeWatch = watchForWake(() => void collector.cycle());
 });
 server.on("error", () => {
   console.error(
@@ -432,6 +437,7 @@ let stopping = false;
 async function stop() {
   if (stopping) return;
   stopping = true;
+  stopWakeWatch();
   server.close();
   await Promise.all([
     importJob.stop(),

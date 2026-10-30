@@ -13,7 +13,7 @@
 - `uninstall`: stop and move the agent plist to Trash; preserve data, settings and backups.
 - `prepare`: validate/stage a plist without installing it.
 
-The dashboard pause switch suspends account reads and local imports; it does not uninstall the login agent. Manual refresh remains available. Account checks normally run every minute; failures back off to five minutes. Import retries run separately. Closing the dashboard releases its detail reader after two idle minutes while collection continues.
+The dashboard pause switch suspends account reads and local imports; it does not uninstall the login agent. Manual refresh remains available. Account checks normally run every minute. Network-shaped failures, such as no connection yet after waking or moving between networks, retry the next minute; other failures back off to five minutes. Waking from sleep triggers a check within about ten seconds. Import retries run separately. Closing the dashboard releases its detail reader after two idle minutes while collection continues.
 
 ## Storage and configuration
 

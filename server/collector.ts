@@ -1,12 +1,19 @@
 import type { CollectorState } from "../shared/api.ts";
 export type { CollectorState } from "../shared/api.ts";
+/**
+ * What one cycle achieved. "transient" is a failure a later attempt can fix without the user doing
+ * anything, such as no network yet after a wake: it is counted as a failure, but the next attempt keeps
+ * the normal interval instead of backing off.
+ */
+export type CollectResult = boolean | "transient";
 export class Collector {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private flight: Promise<void> | null = null;
   private stopped = false;
+  private transient = false;
   state: CollectorState;
   constructor(
-    private collect: () => Promise<boolean>,
+    private collect: () => Promise<CollectResult>,
     enabled: boolean,
     private save: (state: CollectorState) => void,
     private intervalMs = 60000,
@@ -39,7 +46,8 @@ export class Collector {
     if (this.stopped || !this.state.enabled) return;
     const delay = Math.min(
       this.maxDelayMs,
-      this.intervalMs * 2 ** Math.min(4, this.state.failures),
+      this.intervalMs *
+        2 ** (this.transient ? 0 : Math.min(4, this.state.failures)),
     );
     this.state.nextRunAt = Date.now() + delay;
     this.timer = setTimeout(() => {
@@ -56,12 +64,14 @@ export class Collector {
     this.state.lastStartedAt = Date.now();
     this.persist();
     this.flight = (async () => {
-      let ok = false;
+      let result: CollectResult = false;
       try {
-        ok = await this.collect();
+        result = await this.collect();
       } catch {
         /* Keep background failures bounded and metadata-only. */
       }
+      const ok = result === true;
+      this.transient = result === "transient";
       if (ok && this.state.failureSince !== null)
         this.state.recoveredAt = Date.now();
       this.state.failureSince = ok

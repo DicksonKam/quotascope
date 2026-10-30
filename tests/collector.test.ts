@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Collector, type CollectorState } from "../server/collector.ts";
+import {
+  Collector,
+  type CollectorState,
+  type CollectResult,
+} from "../server/collector.ts";
 import { launchAgent } from "../server/launch-agent.ts";
 test("collector schedules work without dashboard requests and never overlaps cycles", async () => {
   let calls = 0,
@@ -86,6 +90,32 @@ test("failed collection backs off and a successful cycle restores normal cadence
   assert.equal(collector.state.lastError, null);
   assert.ok(collector.state.nextRunAt! - Date.now() <= 10000);
   await collector.stop();
+});
+test("transient failures retry at the normal interval while other failures still back off", async () => {
+  let result: CollectResult = "transient";
+  const c = new Collector(
+    async () => result,
+    true,
+    () => {},
+    60000,
+  );
+  for (let i = 0; i < 4; i++) {
+    await c.cycle();
+    // Still a failure for the health panel, but no growing delay after a wake or a network change.
+    assert.equal(c.state.failures, i + 1);
+    assert.ok(c.state.lastError);
+    assert.ok(c.state.nextRunAt! - Date.now() <= 60000);
+    assert.ok(c.state.nextRunAt! - Date.now() > 59000);
+  }
+  result = false;
+  await c.cycle();
+  assert.ok(c.state.nextRunAt! - Date.now() > 299000);
+  result = true;
+  await c.cycle();
+  assert.equal(c.state.failures, 0);
+  assert.ok(c.state.recoveredAt);
+  assert.ok(c.state.nextRunAt! - Date.now() <= 60000);
+  await c.stop();
 });
 test("login definition is user scoped, explicit about executables and safely escapes paths", () => {
   const xml = launchAgent(
