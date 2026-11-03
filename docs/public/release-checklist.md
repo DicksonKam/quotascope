@@ -7,7 +7,7 @@ Status on 16 October 2026: **source release candidate; not a notarized app relea
 - Clean source installation and regression suites on Node 22.13.0, 22.23.3 and 24.22.0, including checkout paths with spaces.
 - Production-dependencies-only startup and both HTTP suites on Node 24.22.0 using synthetic accounts and restored fixture data.
 - Native model/history tests, app build and ad-hoc signature validation on Apple Silicon.
-- All four [GitHub Actions jobs](https://github.com/DicksonKam/quotascope/actions/runs/38906930137) passed for initial preview commit `fb97a84`: macOS/Linux with Node 22/24, including native tests and builds on macOS.
+- All four [GitHub Actions jobs](https://github.com/DicksonKam/quotascope/actions/workflows/ci.yml) run on every push: macOS/Linux with Node 22/24, including native tests and builds on macOS.
 - Publication allowlist and SHA-256 manifest; bounded scans of tracked source and Git history for credentials, private paths and data artifacts. The only path match was an intentional synthetic test fixture. The public demo contains synthetic balances, not personal account data. Pattern scans are not exhaustive secret detection.
 - npm dependency audit reported zero known vulnerabilities at the time of this check; this is not a guarantee against undisclosed vulnerabilities.
 - Current live collector health, enabled login entries, database integrity and existing backup integrity.

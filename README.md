@@ -6,7 +6,7 @@ QuotaScope reads the allowance windows returned by your installed Codex app-serv
 
 **Release status: early preview — source builds only.** Automated local checks pass, and sleep/wake recovery has been observed on the development Mac. This preview is intended for evaluation; it is not a notarized downloadable Mac app.
 
-The initial preview passed the [GitHub Actions matrix](https://github.com/DicksonKam/quotascope/actions/runs/38906930137) on macOS and Linux with Node 22 and 24.
+Every push runs the [GitHub Actions matrix](https://github.com/DicksonKam/quotascope/actions/workflows/ci.yml) on macOS and Linux with Node 22 and 24.
 
 Remaining validation includes the 72-hour monitoring observation, a real logout/login startup check, and broader Mac compatibility. Intel, older macOS, a fresh physical Mac, physical multi-monitor/Spaces behavior and the latest native dark appearance remain unverified. See the [release checklist](docs/public/release-checklist.md) and [compatibility scope](docs/public/compatibility.md) for exact evidence and limitations.
 
